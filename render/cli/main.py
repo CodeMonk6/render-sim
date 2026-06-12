@@ -39,7 +39,41 @@ def eval(
     engine: str = typer.Option("", "--engine", "-e", help="Engine to evaluate (all if empty)."),
 ) -> None:
     """Run the reference-case evaluation harness."""
-    console.print("[yellow]⚙ Eval harness not yet implemented (Phase 0.8)[/yellow]")
+    from render.engines.reference import HarmonicOscillatorAdapter
+    from render.eval.runner import eval_engine
+    from render.registry import registry
+
+    if not registry:
+        registry.register(HarmonicOscillatorAdapter())
+
+    targets = (
+        [registry.get(engine)] if engine else [a for a in registry.list_all() if a.reference_cases]
+    )
+
+    if not targets:
+        console.print("[yellow]No engines with reference cases registered.[/yellow]")
+        raise typer.Exit(0)
+
+    overall_ok = True
+    for adapter in targets:
+        report = eval_engine(adapter)
+        status = "[green]PASS[/green]" if report.ok else "[red]FAIL[/red]"
+        console.print(
+            f"\n[bold]{adapter.name}[/bold] ({adapter.status}) — {status} "
+            f"({report.passed}/{report.total})"
+        )
+        for case in report.cases:
+            icon = "✓" if case.passed else "✗"
+            color = "green" if case.passed else "red"
+            console.print(f"  [{color}]{icon}[/{color}] {case.case_name}")
+            for f in case.failures:
+                console.print(f"      [red]{f}[/red]")
+            for w in case.warnings:
+                console.print(f"      [yellow]⚠ {w}[/yellow]")
+        if not report.ok:
+            overall_ok = False
+
+    raise typer.Exit(0 if overall_ok else 1)
 
 
 @app.command()
