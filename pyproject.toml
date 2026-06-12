@@ -40,8 +40,37 @@ materials = [
 freebird = [
     "juliacall>=0.9",
 ]
+ssa = [
+    "gillespy2>=1.8",
+]
+des = [
+    "simpy>=4.1",
+]
+abm = [
+    "mesa>=2.3",
+]
+mcmc = [
+    "emcee>=3.1",
+]
+nbody = [
+    "rebound>=4.2",
+]
+sbml = [
+    "tellurium>=2.2",
+]
 hpc = [
     "aiida-core>=2.6",
+]
+all-engines = [
+    "ase>=3.23",
+    "pymatgen>=2024.6",
+    "gillespy2>=1.8",
+    "simpy>=4.1",
+    "mesa>=2.3",
+    "emcee>=3.1",
+    "rebound>=4.2",
+    "tellurium>=2.2",
+    "pyscf>=2.5",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -53,6 +82,13 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+"render/app/main.py" = ["E501"]
+"render/engines/**/__init__.py" = ["E501", "E702", "E701", "E731", "E741"]
+"tests/test_intent.py" = ["E501", "E702"]
+"render/cli/main.py" = ["E501"]
+"render/interpret/interpreter.py" = ["E501"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
