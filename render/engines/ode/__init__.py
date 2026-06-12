@@ -47,7 +47,11 @@ class ODEIntent(BaseModel):
         default_factory=dict,
         description="System-specific parameters (e.g. {'k': 0.5} for decay)",
     )
-    y0: list[float] = Field(description="Initial conditions vector")
+    y0: list[float] = Field(
+        default_factory=list,
+        description="Initial conditions vector; if omitted a standard default for the "
+        "chosen system is used.",
+    )
 
 
 # Built-in ODE systems
@@ -82,12 +86,32 @@ _SYSTEMS = {
     "sir": _sir,
 }
 
+# Friendly state-variable labels per system for plot legends.
+_STATE_LABELS = {
+    "exponential_decay": ["y"],
+    "lotka_volterra": ["prey", "predator"],
+    "van_der_pol": ["x", "x'"],
+    "sir": ["S", "I", "R"],
+}
+
+# Standard initial conditions used when the user doesn't state y0.
+_DEFAULT_Y0 = {
+    "exponential_decay": [1.0],
+    "lotka_volterra": [10.0, 5.0],
+    "van_der_pol": [1.0, 0.0],
+    "sir": [999.0, 1.0, 0.0],
+}
+
 
 class SciPyODEAdapter:
     """Certified ODE adapter: SciPy solve_ivp."""
 
     name: str = "scipy_ode"
     family: str = "ode"
+    description: ClassVar[str] = (
+        "generic ODE integration for these systems ONLY: exponential_decay, "
+        "lotka_volterra (predator-prey), van_der_pol, sir. Not for harmonic oscillators."
+    )
     status: TrustStatus = "certified"
     version: ClassVar[str] = "1.0.0"
     runtime: ClassVar[str] = "local"
@@ -131,15 +155,23 @@ class SciPyODEAdapter:
         rtol: float = float(p.get("rtol", 1e-6))
         atol: float = float(p.get("atol", 1e-9))
         params: dict[str, float] = p.get("params", {})
-        y0: list[float] = p.get("y0", [1.0])
+        y0: list[float] = p.get("y0") or _DEFAULT_Y0.get(system_name, [1.0])
 
         sys_fn = _SYSTEMS.get(system_name)
         if sys_fn is None:
             raise ValueError(f"Unknown system: {system_name}")
 
+        # Only pass parameters the chosen system actually accepts — the NL layer
+        # may extract extra/foreign keys, and an unexpected kwarg would otherwise
+        # crash the integration.  Dropped keys are recorded for transparency.
+        import inspect
+        accepted = set(inspect.signature(sys_fn).parameters) - {"t", "y"}
+        used = {k: v for k, v in params.items() if k in accepted}
+        ignored = sorted(set(params) - accepted)
+
         t_eval = np.linspace(t_start, t_end, n_points)
         sol = solve_ivp(
-            lambda t, y: sys_fn(t, y, **params),
+            lambda t, y: sys_fn(t, y, **used),
             [t_start, t_end],
             y0,
             method=method,
@@ -149,6 +181,17 @@ class SciPyODEAdapter:
             dense_output=False,
         )
 
+        # Downsampled trajectory for plotting (cap ~200 points).
+        labels = _STATE_LABELS.get(system_name) or [f"y{j}" for j in range(sol.y.shape[0])]
+        step = max(1, len(sol.t) // 200)
+        series = {
+            "title": f"{system_name} trajectory",
+            "x": {"name": "time", "unit": "", "values": [round(float(t), 5) for t in sol.t[::step]]},
+            "y": [{"name": labels[j] if j < len(labels) else f"y{j}",
+                   "values": [round(float(v), 6) for v in sol.y[j][::step]]}
+                  for j in range(sol.y.shape[0])],
+        }
+
         summary = {
             "system": system_name,
             "success": bool(sol.success),
@@ -157,6 +200,8 @@ class SciPyODEAdapter:
             "y_max": sol.y.max(axis=1).tolist(),
             "y_min": sol.y.min(axis=1).tolist(),
             "nfev": int(sol.nfev),
+            "ignored_params": ignored,
+            "series": series,
         }
         # Store trajectory as CSV-like text in stdout
         rows = ["\t".join([str(sol.t[i])] + [str(sol.y[j, i]) for j in range(sol.y.shape[0])])

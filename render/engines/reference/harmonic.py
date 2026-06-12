@@ -57,6 +57,10 @@ class HarmonicOscillatorAdapter:
 
     name: str = "harmonic_oscillator"
     family: str = "ode"
+    description: ClassVar[str] = (
+        "exact damped/undamped simple harmonic oscillator (spring-mass, pendulum); "
+        "use for any 'harmonic oscillator', natural frequency ω₀, damping ratio ζ question"
+    )
     status: TrustStatus = "certified"
     runtime: ClassVar[str] = "local"
     environment: EnvSpec = EnvSpec(env_type="pip", packages=["scipy>=1.13"])
@@ -171,6 +175,14 @@ class HarmonicOscillatorAdapter:
 
         import json
 
+        # Downsampled trajectory for plotting (cap ~200 points).
+        step = max(1, len(t_vals) // 200)
+        series = {
+            "title": "Displacement vs time",
+            "x": {"name": "time", "unit": "s", "values": [round(t, 5) for t in t_vals[::step]]},
+            "y": [{"name": "x(t)", "unit": "m", "values": [round(x, 6) for x in x_vals[::step]]}],
+        }
+
         summary = json.dumps(
             {
                 "omega0": omega0,
@@ -182,6 +194,7 @@ class HarmonicOscillatorAdapter:
                 "v0": v0,
                 "A": A,
                 "phi": phi,
+                "series": series,
             }
         )
 
@@ -207,7 +220,10 @@ class HarmonicOscillatorAdapter:
             Quantity(name="zeta", value=summary["zeta"], unit=""),
             Quantity(name="amplitude", value=summary["A"], unit="m"),
         ]
-        return ResultBundle(engine=self.name, quantities=quantities, converged=True)
+        meta = {"series": summary["series"]} if "series" in summary else {}
+        return ResultBundle(
+            engine=self.name, quantities=quantities, converged=True, metadata=meta
+        )
 
 
 # ── Reference cases ───────────────────────────────────────────────────────────

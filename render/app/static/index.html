@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Render · Simulation Co-pilot</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Newsreader:opsz,wght@6..72,400;6..72,500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<header class="nav">
+  <div class="nav-inner">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">R</div>
+      <div class="brand-text">
+        <span class="brand-name">Render</span>
+        <span class="brand-sub">Natural language → validated simulation → plain-language answer</span>
+      </div>
+    </div>
+    <div class="nav-meta">
+      <span id="provider-pill" class="pill pill-muted" title="Active LLM provider">…</span>
+      <a class="nav-link" href="/docs" target="_blank" rel="noopener">API</a>
+      <span id="version" class="nav-ver"></span>
+    </div>
+  </div>
+</header>
+
+<main class="layout">
+  <!-- ============ Left column: ask + results ============ -->
+  <section class="col-main">
+
+    <!-- Composer -->
+    <div class="card composer">
+      <div class="composer-head">
+        <h1>Ask a simulation question</h1>
+        <p class="muted">Describe what you want to model in plain English. Render maps it to a
+          validated engine, runs it with full provenance, and explains the result. It never
+          invents the math — when unsure, it asks or abstains.</p>
+      </div>
+      <textarea id="q" rows="3"
+        placeholder="e.g. Model a measles outbreak (R₀ ≈ 4) in a town of 50,000 with 5 initial infections over 180 days"></textarea>
+      <div class="chips" id="examples"></div>
+      <div class="composer-foot">
+        <div class="opts">
+          <input type="text" id="engine" class="eng-input" placeholder="Engine (optional)">
+          <label class="check"><input type="checkbox" id="dry"> <span>Dry run</span></label>
+        </div>
+        <div class="actions">
+          <button class="btn btn-ghost" id="clear-btn" type="button">Clear</button>
+          <button class="btn btn-primary" id="run-btn" type="button">
+            <span class="btn-label">Run simulation</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Status / loading / messages -->
+    <div id="flash" class="flash" hidden></div>
+
+    <!-- Results -->
+    <div id="results" class="results" hidden>
+      <div class="card result-head">
+        <div class="rh-top">
+          <h2>Result</h2>
+          <span id="result-badge" class="badge"></span>
+        </div>
+        <div id="result-engine" class="rh-engine muted"></div>
+        <div id="confidence" class="confidence" hidden>
+          <div class="conf-row">
+            <span class="conf-label">Confidence</span>
+            <span id="conf-val" class="conf-val"></span>
+          </div>
+          <div class="conf-track"><div id="conf-fill" class="conf-fill"></div></div>
+        </div>
+      </div>
+
+      <div class="card" id="metrics-card" hidden>
+        <h3 class="card-title">Key quantities</h3>
+        <div id="metrics" class="metrics"></div>
+      </div>
+
+      <div class="card" id="plot-card" hidden>
+        <h3 class="card-title" id="plot-title">Trajectory</h3>
+        <div id="plot" class="plot"></div>
+        <div id="legend" class="legend"></div>
+      </div>
+
+      <div class="card" id="interp-card" hidden>
+        <h3 class="card-title">Interpretation</h3>
+        <div id="interp" class="prose"></div>
+        <div id="assumptions" class="assumptions" hidden></div>
+      </div>
+
+      <div class="card" id="prov-card" hidden>
+        <h3 class="card-title">Provenance</h3>
+        <div class="prov-grid">
+          <div><span class="prov-k">Run ID</span><span id="prov-runid" class="mono"></span></div>
+          <div><span class="prov-k">Replay</span><span id="prov-replay" class="mono"></span></div>
+        </div>
+        <div class="prov-actions">
+          <a id="prov-download" class="btn btn-ghost btn-sm" download>Download manifest</a>
+          <details class="prov-params">
+            <summary>Parameters sent to engine</summary>
+            <pre id="prov-params" class="mono"></pre>
+          </details>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ Right column: coverage + history ============ -->
+  <aside class="col-side">
+    <div class="card">
+      <h3 class="card-title">Engine coverage</h3>
+      <div id="cov-summary" class="cov-summary"></div>
+      <div id="cov-errors"></div>
+      <div id="cov-families" class="cov-families"><span class="muted">Loading…</span></div>
+    </div>
+
+    <div class="card">
+      <h3 class="card-title">Recent runs</h3>
+      <div id="history" class="history"><span class="muted">No runs yet.</span></div>
+    </div>
+  </aside>
+</main>
+
+<footer class="foot">
+  <span>Render · TWAIN — The WashU AI-Assisted Platform for Simulation From Narration · DTRC 1908</span>
+</footer>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

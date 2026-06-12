@@ -42,95 +42,66 @@ def ask(
     no_interpret: bool = typer.Option(False, "--no-interpret", help="Skip interpretation step."),
 ) -> None:
     """Submit a natural-language simulation question and run it."""
-    from render.engines.reference import HarmonicOscillatorAdapter
-    from render.execute.local import run_local
-    from render.interpret import interpret
-    from render.registry import registry
-    from render.validate import clarify_or_abstain
+    from render.pipeline import run_question
 
-    # Ensure the reference engine is registered
-    if "harmonic_oscillator" not in registry:
-        registry.register(HarmonicOscillatorAdapter())
-
-    # --- Parse intent ---
     console.print(f"[bold]Question:[/bold] {question}")
-    with console.status("Parsing intent…"):
-        try:
-            from render.intent import parse_intent
-            available = [a.name for a in registry.list_all()]
-            families = list({a.family for a in registry.list_all()})
-            intent, proposal = parse_intent(
-                question,
-                available_families=families,
-                available_engines=available,
-            )
-        except Exception as exc:
-            console.print(f"[red]Intent parsing failed: {exc}[/red]")
-            raise typer.Exit(1) from None
+    with console.status("Mapping to a validated engine and running…"):
+        result = run_question(
+            question,
+            engine=engine or None,
+            dry_run=dry_run,
+            interpret_result=not no_interpret,
+            manifest_dir=save_dir,
+        )
 
-    console.print(f"  mode={intent.mode}  family={intent.family}  engine={intent.engine or '(tbd)'}")
+    if result.engine_name:
+        console.print(
+            f"  engine=[cyan]{result.engine_name}[/cyan] "
+            f"family={result.engine_family} status={result.engine_status}"
+        )
 
-    # Handle property_driven mode — show pathway table
-    if intent.mode == "property_driven" and proposal and proposal.pathways:
-        _show_pathway_table(proposal)
-        if dry_run:
-            raise typer.Exit(0)
-        # Default: use the first (recommended) pathway
-        first = proposal.pathways[0]
-        intent = intent.model_copy(update={"engine": first.engine, "mode": "simulation_explicit"})
-        console.print(f"  [dim]→ Proceeding with: {first.engine}[/dim]")
-
-    # Override engine if specified
-    if engine:
-        intent = intent.model_copy(update={"engine": engine})
-
-    # Resolve adapter
-    try:
-        adapter = registry.get(intent.engine)
-    except KeyError:
-        console.print(f"[red]Engine '{intent.engine}' not registered.[/red]")
-        raise typer.Exit(1) from None
-
-    # Clarify or abstain
-    response = clarify_or_abstain(adapter, intent)
-    if response.decision.value == "clarify":
-        console.print(f"[yellow]Need more info:[/yellow] {response.message}")
-        if response.missing_fields:
-            console.print(f"  Missing: {', '.join(response.missing_fields)}")
+    if result.status == "clarify":
+        console.print(f"[yellow]Need more info:[/yellow] {result.message}")
+        if result.missing_fields:
+            console.print(f"  Missing: {', '.join(result.missing_fields)}")
         raise typer.Exit(0)
-    if response.decision.value == "abstain":
-        console.print(f"[red]Cannot run:[/red] {response.message}")
+    if result.status == "abstain":
+        console.print(f"[red]Cannot run:[/red] {result.message}")
         raise typer.Exit(1)
-    if response.message:
-        console.print(f"[yellow]{response.message}[/yellow]")
-
-    if dry_run:
+    if result.status == "error":
+        console.print(f"[red]{result.message}[/red]")
+        raise typer.Exit(1)
+    if result.status == "dry_run":
         console.print("[green]Dry-run complete — intent valid.[/green]")
+        if result.parameters:
+            console.print(f"  parameters: {result.parameters}")
         raise typer.Exit(0)
-
-    # --- Run ---
-    with console.status(f"Running {adapter.name}…"):
-        try:
-            manifest = run_local(adapter, intent, manifest_dir=save_dir)
-        except Exception as exc:
-            console.print(f"[red]Run failed: {exc}[/red]")
-            raise typer.Exit(1) from None
 
     # --- Results ---
-    _show_results(manifest)
+    if result.quantities:
+        table = Table(title="Results")
+        table.add_column("Quantity")
+        table.add_column("Value", justify="right")
+        table.add_column("Unit")
+        for q in result.quantities:
+            val = f"{q['value']:.6g}" if isinstance(q["value"], (int, float)) else str(q["value"])
+            table.add_row(q["name"], val, q.get("unit", ""))
+        console.print(table)
 
-    # --- Interpret ---
-    if not no_interpret:
-        with console.status("Interpreting…"):
-            try:
-                result = interpret(
-                    intent, manifest.bundle, manifest.validation, manifest.engine_status
-                )
-                console.print(f"\n[bold]Interpretation:[/bold]\n{result.formatted()}")
-            except Exception as exc:
-                console.print(f"[yellow]Interpretation failed: {exc}[/yellow]")
+    for w in result.warnings:
+        console.print(f"[yellow]⚠ {w}[/yellow]")
 
-    console.print(f"\n[dim]Manifest saved → {manifest.replay_cmd}[/dim]")
+    if result.interpretation:
+        badge = result.status_badge or ""
+        console.print(f"\n[bold]Interpretation:[/bold] [dim]{badge}[/dim]\n{result.interpretation}")
+        if result.assumptions:
+            console.print("\n[dim]Assumptions:[/dim]")
+            for a in result.assumptions:
+                console.print(f"  • {a}")
+    if result.confidence is not None:
+        console.print(f"\n[dim]Confidence: {result.confidence:.0%}[/dim]")
+
+    console.print(f"\n[dim]Provenance → {result.replay_cmd}[/dim]")
 
 
 @app.command()

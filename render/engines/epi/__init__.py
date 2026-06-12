@@ -38,6 +38,10 @@ class EpiIntent(BaseModel):
 
 class EpiAdapter:
     name: str = "epi_sir_seir"; family: str = "epi"; status: TrustStatus = "certified"
+    description: ClassVar[str] = (
+        "compartmental epidemic models SIR and SEIR; use for outbreaks, R0, "
+        "transmission/recovery rates, attack rate, epidemic peak"
+    )
     version: ClassVar[str] = "1.0.0"; runtime: ClassVar[str] = "local"
     environment: EnvSpec = EnvSpec(env_type="pip", packages=["scipy>=1.13","numpy>=1.26"])
     regime: RegimeSpec = RegimeSpec(bounds=[
@@ -72,8 +76,15 @@ class EpiAdapter:
             idx=2
         sol=solve_ivp(rhs,[0,t_end],y0,t_eval=t_eval,rtol=1e-8,atol=1e-10)
         I_t=sol.y[idx]; R_final=float(sol.y[-1,-1]); peak_I=float(I_t.max()); peak_t=float(sol.t[int(I_t.argmax())])
+        # Downsampled trajectory for plotting (cap ~200 points, keep figures light).
+        labels=(["S","I","R"] if model=="SIR" else ["S","E","I","R"])
+        step=max(1,len(sol.t)//200)
+        series={"title":f"{model} epidemic curve","x":{"name":"time","unit":"days",
+                "values":[round(float(t),4) for t in sol.t[::step]]},
+                "y":[{"name":lab,"values":[round(float(v),3) for v in sol.y[i][::step]]}
+                     for i,lab in enumerate(labels)]}
         s={"model":model,"R0":beta/gamma,"peak_I":peak_I,"peak_t_days":peak_t,
-           "R_final":R_final,"attack_rate":R_final/N,"S_final":float(sol.y[0,-1])}
+           "R_final":R_final,"attack_rate":R_final/N,"S_final":float(sol.y[0,-1]),"series":series}
         return RawOutputs(engine=self.name, exit_code=0, files={"summary.json":json.dumps(s)})
     def parse(self, raw: RawOutputs) -> ResultBundle:
         s=json.loads(raw.files["summary.json"])
