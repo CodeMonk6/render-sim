@@ -1,6 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=render-certify-lammps
-#SBATCH --partition=general
+#SBATCH --partition=general-cpu
+#SBATCH --account=compute2-workshop
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=4
 #SBATCH --mem=16G
@@ -8,6 +9,8 @@
 
 set -euo pipefail
 
+source /etc/profile >/dev/null 2>&1
+ml load ris >/dev/null 2>&1
 source "$HOME/.render_c2_env"
 
 echo "=== LAMMPS certification — LJ argon reference cases ==="

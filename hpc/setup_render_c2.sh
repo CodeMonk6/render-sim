@@ -19,18 +19,27 @@
 # -----------------------------------------------------------------------------
 set -euo pipefail
 
+# Initialize the RIS module system (Lmod) for non-interactive shells, per the
+# RIS Compute2 guide.  Without this, `ml`/conda/Slurm are unavailable over SSH.
+source /etc/profile >/dev/null 2>&1 || true
+ml load ris >/dev/null 2>&1 || true
+
 REPO_DIR="${1:-$HOME/render-sim}"
-ENV_NAME="render_env"
+
+# CRITICAL (RIS guide §3): /home is a small ~47G mount — never build conda envs
+# or package caches there.  Everything heavy lives under a storage allocation.
+# Override with RENDER_C2_WORKSPACE; defaults to the DTRC workshop space.
+WORKSPACE="${RENDER_C2_WORKSPACE:-/storage2/fs1/mdan/Active/dtrc2026-workshop/users/$USER/render-c2}"
+ENV_PREFIX="$WORKSPACE/envs/render_env"
+export CONDA_PKGS_DIRS="$WORKSPACE/.conda/pkgs"
 CONDA_BASE=""
+
+mkdir -p "$WORKSPACE" "$CONDA_PKGS_DIRS"
+echo "==> Workspace (storage, not home): $WORKSPACE"
 
 # ── Step 1: locate or install conda ──────────────────────────────────────────
 
 echo "==> Checking for conda..."
-
-# Try the 'ris' module which may expose conda/mamba
-if ml show ris 2>/dev/null | grep -qi conda; then
-    ml load ris 2>/dev/null || true
-fi
 
 if command -v conda &>/dev/null; then
     CONDA_BASE="$(conda info --base)"
@@ -39,16 +48,16 @@ elif command -v mamba &>/dev/null; then
     CONDA_BASE="$(mamba info --base)"
     echo "    Found mamba at: $CONDA_BASE"
 else
-    echo "    conda not found — installing Miniconda3 into ~/miniconda3"
-    MINICONDA_INSTALLER="$HOME/Miniconda3-latest-Linux-x86_64.sh"
+    echo "    conda not found — installing Miniconda3 into $WORKSPACE/conda (storage)"
+    MINICONDA_INSTALLER="$WORKSPACE/Miniconda3-latest-Linux-x86_64.sh"
     if [[ ! -f "$MINICONDA_INSTALLER" ]]; then
         curl -fsSL \
             "https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh" \
             -o "$MINICONDA_INSTALLER"
     fi
-    bash "$MINICONDA_INSTALLER" -b -p "$HOME/miniconda3"
+    bash "$MINICONDA_INSTALLER" -b -p "$WORKSPACE/conda"
     rm -f "$MINICONDA_INSTALLER"
-    CONDA_BASE="$HOME/miniconda3"
+    CONDA_BASE="$WORKSPACE/conda"
     echo "    Miniconda3 installed at $CONDA_BASE"
 fi
 
@@ -56,18 +65,18 @@ fi
 # shellcheck disable=SC1091
 source "$CONDA_BASE/etc/profile.d/conda.sh"
 
-# ── Step 2: create render_env ─────────────────────────────────────────────────
+# ── Step 2: create render_env (prefix env in storage) ─────────────────────────
 
 echo ""
-echo "==> Creating conda environment '$ENV_NAME' (Python 3.11)..."
+echo "==> Creating conda environment at '$ENV_PREFIX' (Python 3.11)..."
 
-if conda env list | grep -q "^${ENV_NAME} "; then
-    echo "    Environment '$ENV_NAME' already exists — updating."
+if [[ -d "$ENV_PREFIX" ]]; then
+    echo "    Environment already exists at $ENV_PREFIX — updating."
 else
-    conda create -y -n "$ENV_NAME" python=3.11
+    conda create -y -p "$ENV_PREFIX" python=3.11
 fi
 
-conda activate "$ENV_NAME"
+conda activate "$ENV_PREFIX"
 
 # ── Step 3: install Python deps ───────────────────────────────────────────────
 
@@ -168,8 +177,12 @@ cat > "$ENV_FILE" <<ENVBLOCK
 # Render — Compute2 environment activation
 # Source this file: source ~/.render_c2_env
 
+source /etc/profile >/dev/null 2>&1 || true
+ml load ris >/dev/null 2>&1 || true
+
+export CONDA_PKGS_DIRS="${CONDA_PKGS_DIRS}"
 source "${CONDA_BASE}/etc/profile.d/conda.sh"
-conda activate ${ENV_NAME}
+conda activate ${ENV_PREFIX}
 
 # Load API key from ~/.render_secrets if it exists
 if [[ -f "\$HOME/.render_secrets" ]]; then
@@ -184,8 +197,10 @@ if [[ -z "\${OPENROUTER_API_KEY:-}" && -z "\${ANTHROPIC_API_KEY:-}" ]]; then
     echo "    chmod 600 ~/.render_secrets"
 fi
 
-export RENDER_PARTITION="general"
+export RENDER_PARTITION="general-cpu"
+export RENDER_ACCOUNT="compute2-workshop"
 export RENDER_REPO="${REPO_DIR}"
+export RENDER_C2_WORKSPACE="${WORKSPACE}"
 ENVBLOCK
 
 chmod 600 "$ENV_FILE"

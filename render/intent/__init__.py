@@ -1,3 +1,3 @@
-from render.intent.nlp import parse_intent
+from render.intent.nlp import extract_engine_parameters, parse_intent
 
-__all__ = ["parse_intent"]
+__all__ = ["extract_engine_parameters", "parse_intent"]

@@ -13,7 +13,7 @@ AiiDA integration (optional, enabled by [hpc] extra):
   AiiDA Slurm scheduler/transport for automatic provenance graph capture.
 
 Usage:
-    runner = SlurmRunner(partition="compute", account="wexler")
+    runner = SlurmRunner(partition="general-cpu", account="compute2-workshop")
     job_id = runner.submit(adapter, intent)
     manifest = runner.wait_and_collect(job_id)
 """
@@ -49,8 +49,8 @@ class SlurmRunner:
     def __init__(
         self,
         *,
-        partition: str = "general",
-        account: str = "",
+        partition: str = "general-cpu",
+        account: str = "compute2-workshop",
         work_dir: Path = Path(".render_slurm"),
         python_cmd: str = "python",
     ) -> None:
@@ -155,10 +155,13 @@ class SlurmRunner:
         if res.gpu:
             lines.append("#SBATCH --gres=gpu:1")
 
-        # Activate render environment and load any engine-specific module
+        # Initialize Lmod + Slurm (RIS guide), then activate the render env and
+        # load any engine-specific module.
         lines += [
             "",
-            "# Activate render conda env",
+            "# Initialize RIS module system, then activate render conda env",
+            "source /etc/profile >/dev/null 2>&1 || true",
+            "ml load ris >/dev/null 2>&1 || true",
             "source \"$HOME/.render_c2_env\"",
         ]
         env = adapter.environment

@@ -191,6 +191,74 @@ def parse_intent(
     return intent, proposal
 
 
+def extract_engine_parameters(
+    question: str,
+    schema_cls: type[BaseModel],
+    *,
+    base_params: dict[str, Any] | None = None,
+    model: str = _DEFAULT_MODEL,
+    api_key: str | None = None,
+) -> dict[str, Any]:
+    """Re-extract parameters from *question* into a specific engine's schema.
+
+    The first generic pass (``parse_intent``) picks the engine and family but
+    produces free-form parameter names ("natural_frequency"), which rarely match
+    an engine's exact field names ("omega0").  This second pass binds extraction
+    to the *selected engine's own Pydantic schema* — the system's single contract
+    for what that engine accepts — so names line up and Pydantic validates types.
+
+    To preserve "ask, don't guess", every field is mirrored as Optional/None and
+    the model is told to leave a field null unless the value is explicitly stated
+    or unambiguously implied.  Only the fields the model actually set are returned
+    and merged over ``base_params``; genuinely-missing required fields stay absent
+    so the clarify/abstain controller can ask for them.
+    """
+    from pydantic import create_model
+
+    provider = _get_provider(api_key)
+    key = _get_api_key(api_key)
+    if model == _DEFAULT_MODEL:
+        model = _get_default_model(provider)
+
+    # Build an all-optional mirror of the engine schema so unstated fields stay null.
+    optional_fields: dict[str, Any] = {}
+    descriptions: list[str] = []
+    for fname, finfo in schema_cls.model_fields.items():
+        ann = finfo.annotation
+        desc = finfo.description or ""
+        optional_fields[fname] = (ann | None, Field(default=None, description=desc))
+        descriptions.append(f"  - {fname}: {desc}" if desc else f"  - {fname}")
+    mirror = create_model(f"_{schema_cls.__name__}_Optional", **optional_fields)
+
+    if provider == "anthropic":
+        client = instructor.from_anthropic(anthropic.Anthropic(api_key=key or None))  # type: ignore[arg-type]
+    else:
+        client = _make_instructor_client(provider, key)
+
+    system = (
+        "You map a researcher's question onto the exact parameters of a chosen "
+        "simulation engine. Fill ONLY fields whose values are explicitly stated or "
+        "unambiguously implied by the question. Leave every other field null — do "
+        "not invent or assume values. Convert units to the field's stated unit when "
+        "one is given.\n\nEngine parameters:\n" + "\n".join(descriptions)
+    )
+
+    try:
+        filled = _instructor_create(
+            client, provider, model, system, question, mirror,
+            max_tokens=1024, max_retries=MAX_RETRIES,
+        )
+    except Exception:
+        return dict(base_params or {})
+
+    params: dict[str, Any] = dict(base_params or {})
+    for fname in schema_cls.model_fields:
+        val = getattr(filled, fname, None)
+        if val is not None:
+            params[fname] = val
+    return params
+
+
 def _propose_pathways(
     question: str,
     family: str,

@@ -12,8 +12,8 @@
 # to get the certification scorecard.
 set -euo pipefail
 
-PARTITION="${RENDER_PARTITION:-general}"
-ACCOUNT=""
+PARTITION="${RENDER_PARTITION:-general-cpu}"
+ACCOUNT="${RENDER_ACCOUNT:-compute2-workshop}"
 JOB_DIR="$HOME/.render_cert_jobs"
 
 while [[ $# -gt 0 ]]; do
