@@ -25,8 +25,8 @@ router = APIRouter(prefix="/coverage", tags=["coverage"])
 class EngineCoverage(BaseModel):
     name: str
     family: str
-    status: str                      # certified | experimental
-    runtime: str                     # local | hpc | either
+    status: str  # certified | experimental
+    runtime: str  # local | hpc | either
     reference_cases: int
     reference_case_names: list[str] = Field(default_factory=list)
     env_type: str = ""
@@ -96,8 +96,7 @@ async def coverage() -> CoverageResponse:
         x = sum(1 for e in engines if e.status == "experimental")
         cert_total += c
         exp_total += x
-        families.append(FamilyCoverage(family=fam, engines=engines,
-                                       certified=c, experimental=x))
+        families.append(FamilyCoverage(family=fam, engines=engines, certified=c, experimental=x))
 
     errors = [f"{spec}: {reason}" for spec, reason in report.errors]
 

@@ -109,16 +109,20 @@ def run_question(
             question, available_families=families, available_engines=engine_hints, api_key=api_key
         )
     except Exception as exc:
-        return PipelineResult(status="error", question=question,
-                              message=f"Could not understand the question: {exc}")
+        return PipelineResult(
+            status="error", question=question, message=f"Could not understand the question: {exc}"
+        )
 
     # 2. Property-driven → expose pathway table, auto-select the first pathway.
     pathway_dicts: list[dict] = []
     if intent.mode == "property_driven" and proposal and proposal.pathways:
         pathway_dicts = [p.model_dump() for p in proposal.pathways]
-        intent = intent.model_copy(update={
-            "engine": proposal.pathways[0].engine, "mode": "simulation_explicit",
-        })
+        intent = intent.model_copy(
+            update={
+                "engine": proposal.pathways[0].engine,
+                "mode": "simulation_explicit",
+            }
+        )
 
     if engine:
         intent = intent.model_copy(update={"engine": engine})
@@ -126,16 +130,22 @@ def run_question(
     # 3. Resolve the engine adapter.
     if not intent.engine:
         return PipelineResult(
-            status="abstain", question=question, pathways=pathway_dicts,
+            status="abstain",
+            question=question,
+            pathways=pathway_dicts,
             message="I couldn't determine which engine to use for this question.",
         )
     try:
         adapter = registry.get(intent.engine)
     except KeyError:
         return PipelineResult(
-            status="abstain", question=question, pathways=pathway_dicts,
-            message=(f"No engine named '{intent.engine}' is registered. "
-                     f"Available engines: {', '.join(engines)}."),
+            status="abstain",
+            question=question,
+            pathways=pathway_dicts,
+            message=(
+                f"No engine named '{intent.engine}' is registered. "
+                f"Available engines: {', '.join(engines)}."
+            ),
         )
 
     # 4. Bind parameters to THIS engine's schema (skip the call if already valid).
@@ -150,27 +160,44 @@ def run_question(
     clarify = clarify_or_abstain(adapter, intent)
     if clarify.decision.value == "clarify":
         return PipelineResult(
-            status="clarify", question=question, message=clarify.message,
-            engine_name=adapter.name, engine_family=adapter.family,
-            engine_status=adapter.status, missing_fields=clarify.missing_fields,
-            validation_passed=False, pathways=pathway_dicts, parameters=dict(intent.parameters),
+            status="clarify",
+            question=question,
+            message=clarify.message,
+            engine_name=adapter.name,
+            engine_family=adapter.family,
+            engine_status=adapter.status,
+            missing_fields=clarify.missing_fields,
+            validation_passed=False,
+            pathways=pathway_dicts,
+            parameters=dict(intent.parameters),
         )
     if clarify.decision.value == "abstain":
         return PipelineResult(
-            status="abstain", question=question, message=clarify.message,
-            engine_name=adapter.name, engine_family=adapter.family,
-            engine_status=adapter.status, validation_passed=False, pathways=pathway_dicts,
+            status="abstain",
+            question=question,
+            message=clarify.message,
+            engine_name=adapter.name,
+            engine_family=adapter.family,
+            engine_status=adapter.status,
+            validation_passed=False,
+            pathways=pathway_dicts,
             parameters=dict(intent.parameters),
         )
 
     if dry_run:
         return PipelineResult(
-            status="dry_run", question=question, message=clarify.message,
-            engine_name=adapter.name, engine_family=adapter.family,
-            engine_status=adapter.status, validation_passed=True,
+            status="dry_run",
+            question=question,
+            message=clarify.message,
+            engine_name=adapter.name,
+            engine_family=adapter.family,
+            engine_status=adapter.status,
+            validation_passed=True,
             in_regime=clarify.validation.in_regime if clarify.validation else True,
-            confidence=clarify.confidence, assumptions=clarify.assumptions,
-            pathways=pathway_dicts, parameters=dict(intent.parameters),
+            confidence=clarify.confidence,
+            assumptions=clarify.assumptions,
+            pathways=pathway_dicts,
+            parameters=dict(intent.parameters),
         )
 
     # 6. Run locally with full provenance.
@@ -178,14 +205,16 @@ def run_question(
         manifest = run_local(adapter, intent, manifest_dir=manifest_dir)
     except Exception as exc:
         return PipelineResult(
-            status="error", question=question, engine_name=adapter.name,
-            engine_family=adapter.family, engine_status=adapter.status,
+            status="error",
+            question=question,
+            engine_name=adapter.name,
+            engine_family=adapter.family,
+            engine_status=adapter.status,
             message=f"The engine failed to run: {exc}",
         )
 
     quantities = [
-        {"name": q.name, "value": q.value, "unit": q.unit or ""}
-        for q in manifest.bundle.quantities
+        {"name": q.name, "value": q.value, "unit": q.unit or ""} for q in manifest.bundle.quantities
     ]
     series = manifest.bundle.metadata.get("series") if manifest.bundle.metadata else None
 
@@ -195,8 +224,13 @@ def run_question(
     assumptions = list(clarify.assumptions)
     if interpret_result:
         try:
-            ir = interpret(intent, manifest.bundle, manifest.validation,
-                           manifest.engine_status, api_key=api_key)
+            ir = interpret(
+                intent,
+                manifest.bundle,
+                manifest.validation,
+                manifest.engine_status,
+                api_key=api_key,
+            )
             interp_text = ir.text
             status_badge = ir.status_badge
             conf = ir.confidence
@@ -210,15 +244,23 @@ def run_question(
         manifest_path = str(Path(manifest_dir) / f"{manifest.run_id}.json")
 
     return PipelineResult(
-        status="ok", question=question,
-        engine_name=manifest.engine_name, engine_family=adapter.family,
+        status="ok",
+        question=question,
+        engine_name=manifest.engine_name,
+        engine_family=adapter.family,
         engine_status=manifest.engine_status,
-        run_id=str(manifest.run_id), quantities=quantities, series=series,
-        interpretation=interp_text, status_badge=status_badge,
-        confidence=conf, assumptions=assumptions,
+        run_id=str(manifest.run_id),
+        quantities=quantities,
+        series=series,
+        interpretation=interp_text,
+        status_badge=status_badge,
+        confidence=conf,
+        assumptions=assumptions,
         validation_passed=manifest.validation.passed,
         in_regime=manifest.validation.in_regime,
         warnings=manifest.validation.warnings,
-        pathways=pathway_dicts, parameters=dict(intent.parameters),
-        replay_cmd=manifest.replay_cmd, manifest_path=manifest_path,
+        pathways=pathway_dicts,
+        parameters=dict(intent.parameters),
+        replay_cmd=manifest.replay_cmd,
+        manifest_path=manifest_path,
     )

@@ -1,4 +1,5 @@
 """Tests for parse_intent (mocked Anthropic API)."""
+
 from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
@@ -25,11 +26,24 @@ def _mock_instructor_response(mode="simulation_explicit", family="ode", engine="
 
 def _mock_pathway_response():
     mock = MagicMock()
-    pw1 = MagicMock(); pw1.engine="scipy_ode"; pw1.family="ode"
-    pw1.description="ODE"; pw1.estimated_cost="seconds"; pw1.fidelity="high"; pw1.assumptions=[]; pw1.status="certified"
-    pw2 = MagicMock(); pw2.engine="emcee_mcmc"; pw2.family="mcmc"
-    pw2.description="MCMC"; pw2.estimated_cost="minutes"; pw2.fidelity="probabilistic"; pw2.assumptions=[]; pw2.status="certified"
-    mock.pathways=[pw1,pw2]; mock.recommendation="Use scipy_ode for deterministic result."
+    pw1 = MagicMock()
+    pw1.engine = "scipy_ode"
+    pw1.family = "ode"
+    pw1.description = "ODE"
+    pw1.estimated_cost = "seconds"
+    pw1.fidelity = "high"
+    pw1.assumptions = []
+    pw1.status = "certified"
+    pw2 = MagicMock()
+    pw2.engine = "emcee_mcmc"
+    pw2.family = "mcmc"
+    pw2.description = "MCMC"
+    pw2.estimated_cost = "minutes"
+    pw2.fidelity = "probabilistic"
+    pw2.assumptions = []
+    pw2.status = "certified"
+    mock.pathways = [pw1, pw2]
+    mock.recommendation = "Use scipy_ode for deterministic result."
     return mock
 
 
@@ -46,8 +60,8 @@ def test_parse_intent_simulation_explicit(mock_anthropic, mock_instructor):
 
     intent, proposal = parse_intent(
         "Simulate exponential decay for 10 seconds",
-        available_families=["ode","epi"],
-        available_engines=["scipy_ode","harmonic_oscillator"],
+        available_families=["ode", "epi"],
+        available_engines=["scipy_ode", "harmonic_oscillator"],
         model="claude-haiku-4-5-20251001",
         api_key="test-key",
     )
@@ -75,8 +89,8 @@ def test_parse_intent_property_driven(mock_anthropic, mock_instructor):
 
     intent, proposal = parse_intent(
         "What is the best way to model water at 300K?",
-        available_families=["ode","md"],
-        available_engines=["scipy_ode","openmm_md"],
+        available_families=["ode", "md"],
+        available_engines=["scipy_ode", "openmm_md"],
         model="claude-haiku-4-5-20251001",
         api_key="test-key",
     )
@@ -126,5 +140,6 @@ def test_parse_intent_resources_populated(mock_anthropic, mock_instructor):
         api_key="test-key",
     )
     from render.types import ResourceSpec
+
     assert isinstance(intent.resources, ResourceSpec)
     assert intent.resources.cores_per_node >= 1

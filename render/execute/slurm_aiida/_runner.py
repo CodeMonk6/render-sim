@@ -7,6 +7,7 @@ The batch script does:
 This module loads the adapter from the registry, deserializes the intent,
 runs it locally (on the compute node), and writes the RunManifest.
 """
+
 from __future__ import annotations
 
 from pathlib import Path

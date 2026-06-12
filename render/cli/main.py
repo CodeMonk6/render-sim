@@ -119,9 +119,7 @@ def eval(
         registry.register(HarmonicOscillatorAdapter())
 
     targets = (
-        [registry.get(engine)]
-        if engine
-        else [a for a in registry.list_all() if a.reference_cases]
+        [registry.get(engine)] if engine else [a for a in registry.list_all() if a.reference_cases]
     )
 
     if not targets:
@@ -159,6 +157,7 @@ def eval(
 
     if json_out:
         import json
+
         json_out.write_text(json.dumps(scorecard, indent=2))
         console.print(f"[dim]Scorecard → {json_out}[/dim]")
 
@@ -188,8 +187,7 @@ def replay(
 
     original = RunManifest.model_validate_json(manifest_path.read_text())
     console.print(f"[bold]Replaying:[/bold] {original.run_id}")
-    console.print(f"  engine={original.engine_name}  "
-                  f"timestamp={original.timestamp.isoformat()}")
+    console.print(f"  engine={original.engine_name}  timestamp={original.timestamp.isoformat()}")
 
     try:
         adapter = registry.get(original.engine_name)
@@ -243,6 +241,7 @@ def serve(
 ) -> None:
     """Start the Render web API server."""
     import uvicorn
+
     uvicorn.run("render.app.main:app", host=host, port=port, reload=reload)
 
 
@@ -280,4 +279,5 @@ def _show_pathway_table(proposal) -> None:  # type: ignore[no-untyped-def]
 def _register_all_engines(registry) -> None:  # type: ignore[no-untyped-def]
     """Register all available engine adapters via the canonical bootstrap."""
     from render.registry.bootstrap import register_all_engines
+
     register_all_engines(registry)

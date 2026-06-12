@@ -52,8 +52,7 @@ def ground_check(text: str, bundle: ResultBundle) -> ValidationReport:
             passed=False,
             failed_layer=7,
             errors=[
-                f"Interpreter cited numbers not found in ResultBundle: "
-                f"{', '.join(fabricated[:5])}"
+                f"Interpreter cited numbers not found in ResultBundle: {', '.join(fabricated[:5])}"
             ],
             warnings=[],
             confidence=0.0,

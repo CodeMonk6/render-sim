@@ -1,4 +1,5 @@
 """Tests for run_local, manifest serialization, and replay."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -14,7 +15,14 @@ def _harmonic_intent() -> Intent:
         question="Harmonic oscillator omega0=1 x0=1",
         family="ode",
         engine="harmonic_oscillator",
-        parameters={"omega0": 1.0, "x0": 1.0, "v0": 0.0, "zeta": 0.0, "t_end": 6.28318, "n_points": 100},
+        parameters={
+            "omega0": 1.0,
+            "x0": 1.0,
+            "v0": 0.0,
+            "zeta": 0.0,
+            "t_end": 6.28318,
+            "n_points": 100,
+        },
         constraints=[Constraint(name="omega0", value=1.0)],
     )
 

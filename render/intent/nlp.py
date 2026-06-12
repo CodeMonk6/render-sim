@@ -78,7 +78,9 @@ class _IntentExtraction(BaseModel):
         description="Assumptions made to fill in unstated parameters",
     )
     confidence: float = Field(
-        default=1.0, ge=0.0, le=1.0,
+        default=1.0,
+        ge=0.0,
+        le=1.0,
         description="Confidence in the mapping (lower if ambiguous)",
     )
     resources_cores: int = Field(default=1, description="CPU cores needed")
@@ -91,9 +93,7 @@ class _PathwayExtraction(BaseModel):
     """Schema for property-driven mode: a list of candidate pathways."""
 
     pathways: list[_ExtractedPathway]
-    recommendation: str = Field(
-        default="", description="Brief reason for the recommended pathway"
-    )
+    recommendation: str = Field(default="", description="Brief reason for the recommended pathway")
 
 
 class _ExtractedPathway(BaseModel):
@@ -146,8 +146,14 @@ def parse_intent(
 
     try:
         extraction: _IntentExtraction = _instructor_create(
-            client, provider, model, system, question, _IntentExtraction,
-            max_tokens=1024, max_retries=MAX_RETRIES,
+            client,
+            provider,
+            model,
+            system,
+            question,
+            _IntentExtraction,
+            max_tokens=1024,
+            max_retries=MAX_RETRIES,
         )
     except Exception as exc:
         raise RuntimeError(f"Intent parsing failed: {exc}") from exc
@@ -245,8 +251,14 @@ def extract_engine_parameters(
 
     try:
         filled = _instructor_create(
-            client, provider, model, system, question, mirror,
-            max_tokens=1024, max_retries=MAX_RETRIES,
+            client,
+            provider,
+            model,
+            system,
+            question,
+            mirror,
+            max_tokens=1024,
+            max_retries=MAX_RETRIES,
         )
     except Exception:
         return dict(base_params or {})
@@ -277,8 +289,14 @@ def _propose_pathways(
     )
     try:
         pw_ex: _PathwayExtraction = _instructor_create(
-            client, provider, model, system, prompt, _PathwayExtraction,
-            max_tokens=1024, max_retries=MAX_RETRIES,
+            client,
+            provider,
+            model,
+            system,
+            prompt,
+            _PathwayExtraction,
+            max_tokens=1024,
+            max_retries=MAX_RETRIES,
         )
     except Exception:
         return PathwayProposal(question=question, pathways=[], recommendation="")
@@ -324,6 +342,19 @@ Rules:
 
 
 _DEFAULT_FAMILIES = [
-    "ode", "epi", "sbml", "ssa", "mcmc", "des", "abm", "nbody",
-    "md", "dft", "freebird", "materials_utils", "fem", "em", "cfd",
+    "ode",
+    "epi",
+    "sbml",
+    "ssa",
+    "mcmc",
+    "des",
+    "abm",
+    "nbody",
+    "md",
+    "dft",
+    "freebird",
+    "materials_utils",
+    "fem",
+    "em",
+    "cfd",
 ]

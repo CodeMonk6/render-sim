@@ -32,14 +32,16 @@ async def list_runs(limit: int = 25) -> dict:
             m = json.loads(f.read_text())
         except Exception:
             continue
-        runs.append({
-            "run_id": m.get("run_id"),
-            "engine_name": m.get("engine_name"),
-            "engine_status": m.get("engine_status"),
-            "timestamp": m.get("timestamp"),
-            "question": (m.get("intent") or {}).get("question", ""),
-            "validation_passed": (m.get("validation") or {}).get("passed", None),
-        })
+        runs.append(
+            {
+                "run_id": m.get("run_id"),
+                "engine_name": m.get("engine_name"),
+                "engine_status": m.get("engine_status"),
+                "timestamp": m.get("timestamp"),
+                "question": (m.get("intent") or {}).get("question", ""),
+                "validation_passed": (m.get("validation") or {}).get("passed", None),
+            }
+        )
     return {"runs": runs}
 
 

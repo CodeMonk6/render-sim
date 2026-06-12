@@ -1,4 +1,5 @@
 """GET /eval — run reference-case evaluation harness."""
+
 from __future__ import annotations
 
 from fastapi import APIRouter
@@ -38,19 +39,23 @@ async def run_eval(engine: str | None = None) -> EvalResponse:
         # A bare /eval must never try to execute uninstalled HPC backends, so the
         # bulk default is limited to locally-runnable engines.  Heavy engines are
         # evaluated only when named explicitly (?engine=...).
-        targets = [
-            a for a in registry.list_all()
-            if a.reference_cases and a.runtime == "local"
-        ]
+        targets = [a for a in registry.list_all() if a.reference_cases and a.runtime == "local"]
 
     scores: list[EngineScore] = []
     overall_ok = True
     for adapter in targets:
         report = eval_engine(adapter)
         failures = [f for case in report.cases for f in case.failures]
-        scores.append(EngineScore(engine=adapter.name, status=adapter.status,
-                                  ok=report.ok, passed=report.passed, total=report.total,
-                                  failures=failures))
+        scores.append(
+            EngineScore(
+                engine=adapter.name,
+                status=adapter.status,
+                ok=report.ok,
+                passed=report.passed,
+                total=report.total,
+                failures=failures,
+            )
+        )
         if not report.ok:
             overall_ok = False
     return EvalResponse(scores=scores, overall_ok=overall_ok)

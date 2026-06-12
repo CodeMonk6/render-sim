@@ -2,6 +2,7 @@
 
 Experimental until reference cases pass on a machine with OpenMM installed.
 """
+
 from __future__ import annotations
 
 import json
@@ -36,31 +37,50 @@ class MDIntent(BaseModel):
     seed: int = Field(default=42)
     force_field: str = Field(default="amber14", description="Force field name")
 
+
 class OpenMMAdapter:
-    name: str = "openmm_md"; family: str = "md"; status: TrustStatus = "certified"
+    name: str = "openmm_md"
+    family: str = "md"
+    status: TrustStatus = "certified"
     description: ClassVar[str] = (
         "molecular dynamics via OpenMM (NPT): Lennard-Jones argon fluid ('argon_lj') and a "
         "TIP3P water box ('tip3p_water_box'); use for MD, density, potential energy at given T/P"
     )
-    version: ClassVar[str] = "1.0.0"; runtime: ClassVar[str] = "either"
-    environment: EnvSpec = EnvSpec(env_type="conda",packages=["openmm>=8.0"],
-        module_name="openmm/8.0",notes="Available via conda: conda install -c conda-forge openmm")
-    regime: RegimeSpec = RegimeSpec(bounds=[
-        RegimeBound(field="temperature",min_val=1.0,max_val=1000.0,unit="K"),
-        RegimeBound(field="pressure",min_val=0.1,max_val=10000.0,unit="bar"),
-        RegimeBound(field="n_steps",min_val=100,max_val=100_000_000),
-    ])
+    version: ClassVar[str] = "1.0.0"
+    runtime: ClassVar[str] = "either"
+    environment: EnvSpec = EnvSpec(
+        env_type="conda",
+        packages=["openmm>=8.0"],
+        module_name="openmm/8.0",
+        notes="Available via conda: conda install -c conda-forge openmm",
+    )
+    regime: RegimeSpec = RegimeSpec(
+        bounds=[
+            RegimeBound(field="temperature", min_val=1.0, max_val=1000.0, unit="K"),
+            RegimeBound(field="pressure", min_val=0.1, max_val=10000.0, unit="bar"),
+            RegimeBound(field="n_steps", min_val=100, max_val=100_000_000),
+        ]
+    )
+
     @property
-    def intent_schema(self): return MDIntent
+    def intent_schema(self):
+        return MDIntent
+
     @property
-    def reference_cases(self): return _REFERENCE_CASES
+    def reference_cases(self):
+        return _REFERENCE_CASES
+
     def validate(self, intent: Intent) -> ValidationReport:
-        s=intent.parameters.get("system","")
-        if s not in ("tip3p_water_box","alanine_dipeptide","argon_lj"):
-            return ValidationReport(passed=False,failed_layer=1,errors=[f"Unknown system '{s}'"])
+        s = intent.parameters.get("system", "")
+        if s not in ("tip3p_water_box", "alanine_dipeptide", "argon_lj"):
+            return ValidationReport(passed=False, failed_layer=1, errors=[f"Unknown system '{s}'"])
         return ValidationReport(passed=True)
+
     def build_inputs(self, intent: Intent) -> EngineInputs:
-        return EngineInputs(engine=self.name,params=dict(intent.parameters),seed=intent.parameters.get("seed",42))
+        return EngineInputs(
+            engine=self.name, params=dict(intent.parameters), seed=intent.parameters.get("seed", 42)
+        )
+
     def run(self, inputs: EngineInputs, resources: ResourceSpec) -> RawOutputs:
         try:
             import openmm  # noqa: F401
@@ -86,20 +106,29 @@ class OpenMMAdapter:
         if s.get("density_g_cm3") is not None:
             q.append(Quantity(name="density_g_cm3", value=s["density_g_cm3"], unit="g/cm^3"))
         if s.get("mean_potential_energy_kJ_mol") is not None:
-            q.append(Quantity(name="mean_potential_energy_kJ_mol",
-                              value=s["mean_potential_energy_kJ_mol"], unit="kJ/mol"))
+            q.append(
+                Quantity(
+                    name="mean_potential_energy_kJ_mol",
+                    value=s["mean_potential_energy_kJ_mol"],
+                    unit="kJ/mol",
+                )
+            )
         q.append(Quantity(name="temperature_K", value=s["temperature_K"], unit="K"))
         q.append(Quantity(name="n_atoms", value=s["n_atoms"]))
-        return ResultBundle(engine=self.name, quantities=q, converged=s.get("converged", True),
-                            metadata=s)
+        return ResultBundle(
+            engine=self.name, quantities=q, converged=s.get("converged", True), metadata=s
+        )
+
 
 _NA = 6.02214076e23  # Avogadro
 
 
 def _density_series(times_ps, rhos):
-    return {"title": "Density equilibration (NPT)",
-            "x": {"name": "time", "unit": "ps", "values": times_ps},
-            "y": [{"name": "density (g/cm³)", "values": rhos}]}
+    return {
+        "title": "Density equilibration (NPT)",
+        "x": {"name": "time", "unit": "ps", "values": times_ps},
+        "y": [{"name": "density (g/cm³)", "values": rhos}],
+    }
 
 
 def _simulate_argon(T: float, n_steps: int, dt_fs: float, seed: int) -> dict:
@@ -109,8 +138,8 @@ def _simulate_argon(T: float, n_steps: int, dt_fs: float, seed: int) -> dict:
     from openmm import unit
 
     n = 512
-    sigma_nm = 0.3405          # argon sigma = 3.405 Angstrom
-    eps_kj = 0.9977            # argon eps/k_B = 119.8 K -> 0.9977 kJ/mol
+    sigma_nm = 0.3405  # argon sigma = 3.405 Angstrom
+    eps_kj = 0.9977  # argon eps/k_B = 119.8 K -> 0.9977 kJ/mol
     mass_amu = 39.948
     mass_g = mass_amu / _NA
     # Initial box sized to a liquid-argon density guess (~1.4 g/cm³).
@@ -144,7 +173,8 @@ def _simulate_argon(T: float, n_steps: int, dt_fs: float, seed: int) -> dict:
     system.addForce(openmm.MonteCarloBarostat(1.0 * unit.bar, T * unit.kelvin, 25))
 
     integ = openmm.LangevinMiddleIntegrator(
-        T * unit.kelvin, 1.0 / unit.picosecond, dt_fs * unit.femtoseconds)
+        T * unit.kelvin, 1.0 / unit.picosecond, dt_fs * unit.femtoseconds
+    )
     integ.setRandomNumberSeed(seed)
     ctx = openmm.Context(system, integ, openmm.Platform.getPlatformByName("CPU"))
     ctx.setPositions(pos * unit.nanometer)
@@ -165,16 +195,20 @@ def _simulate_argon(T: float, n_steps: int, dt_fs: float, seed: int) -> dict:
         vol_cm3 = (bv[0][0] * bv[1][1] * bv[2][2]) * 1e-21
         rho = total_mass_g / vol_cm3
         pe = st.getPotentialEnergy().value_in_unit(unit.kilojoule_per_mole) / n
-        dens.append(rho); pes.append(pe)
+        dens.append(rho)
+        pes.append(pe)
         t_ps.append(round((n_eq + (si + 1) * stride) * dt_fs / 1000.0, 2))
         rho_series.append(round(rho, 4))
 
     half = len(dens) // 2
     return {
-        "system": "argon_lj", "temperature_K": T, "n_atoms": n,
+        "system": "argon_lj",
+        "temperature_K": T,
+        "n_atoms": n,
         "density_g_cm3": round(float(np.mean(dens[half:])), 4),
         "mean_potential_energy_kJ_mol": round(float(np.mean(pes[half:])), 4),
-        "converged": True, "series": _density_series(t_ps, rho_series),
+        "converged": True,
+        "series": _density_series(t_ps, rho_series),
     }
 
 
@@ -186,24 +220,31 @@ def _simulate_water(T: float, n_steps: int, dt_fs: float, seed: int) -> dict:
 
     ff = app.ForceField("amber14/tip3p.xml")
     modeller = app.Modeller(app.Topology(), [])
-    modeller.addSolvent(ff, model="tip3p",
-                        boxSize=openmm.Vec3(1.9, 1.9, 1.9) * unit.nanometer)
-    system = ff.createSystem(modeller.topology, nonbondedMethod=app.PME,
-                             nonbondedCutoff=0.9 * unit.nanometer,
-                             constraints=app.HBonds, rigidWater=True)
+    modeller.addSolvent(ff, model="tip3p", boxSize=openmm.Vec3(1.9, 1.9, 1.9) * unit.nanometer)
+    system = ff.createSystem(
+        modeller.topology,
+        nonbondedMethod=app.PME,
+        nonbondedCutoff=0.9 * unit.nanometer,
+        constraints=app.HBonds,
+        rigidWater=True,
+    )
     system.addForce(openmm.MonteCarloBarostat(1.0 * unit.bar, T * unit.kelvin, 25))
     integ = openmm.LangevinMiddleIntegrator(
-        T * unit.kelvin, 1.0 / unit.picosecond, dt_fs * unit.femtoseconds)
+        T * unit.kelvin, 1.0 / unit.picosecond, dt_fs * unit.femtoseconds
+    )
     integ.setRandomNumberSeed(seed)
-    sim = app.Simulation(modeller.topology, system, integ,
-                         openmm.Platform.getPlatformByName("CPU"))
+    sim = app.Simulation(modeller.topology, system, integ, openmm.Platform.getPlatformByName("CPU"))
     sim.context.setPositions(modeller.positions)
     sim.minimizeEnergy(maxIterations=200)
     sim.context.setVelocitiesToTemperature(T * unit.kelvin, seed)
 
-    total_mass_g = sum(
-        system.getParticleMass(i).value_in_unit(unit.amu) for i in range(system.getNumParticles())
-    ) / _NA
+    total_mass_g = (
+        sum(
+            system.getParticleMass(i).value_in_unit(unit.amu)
+            for i in range(system.getNumParticles())
+        )
+        / _NA
+    )
     n_waters = system.getNumParticles() // 3
 
     n_eq = n_steps // 2
@@ -223,26 +264,48 @@ def _simulate_water(T: float, n_steps: int, dt_fs: float, seed: int) -> dict:
 
     half = len(dens) // 2
     return {
-        "system": "tip3p_water_box", "temperature_K": T, "n_atoms": n_waters,
+        "system": "tip3p_water_box",
+        "temperature_K": T,
+        "n_atoms": n_waters,
         "density_g_cm3": round(float(np.mean(dens[half:])), 4),
         "mean_potential_energy_kJ_mol": None,
-        "converged": True, "series": _density_series(t_ps, rho_series),
+        "converged": True,
+        "series": _density_series(t_ps, rho_series),
     }
 
 
-def _md_intent(system,T,n_steps,seed=42):
-    return Intent(mode="simulation_explicit",question=f"MD {system} T={T}K",family="md",engine="openmm_md",
-        parameters={"system":system,"temperature":T,"n_steps":n_steps,"seed":seed,"timestep_fs":2.0},
-        constraints=[Constraint(name="system",value=system)])
+def _md_intent(system, T, n_steps, seed=42):
+    return Intent(
+        mode="simulation_explicit",
+        question=f"MD {system} T={T}K",
+        family="md",
+        engine="openmm_md",
+        parameters={
+            "system": system,
+            "temperature": T,
+            "n_steps": n_steps,
+            "seed": seed,
+            "timestep_fs": 2.0,
+        },
+        constraints=[Constraint(name="system", value=system)],
+    )
+
+
 _REFERENCE_CASES: list[ReferenceCase] = [
-    ReferenceCase(name="md_argon_density",engine="openmm_md",
+    ReferenceCase(
+        name="md_argon_density",
+        engine="openmm_md",
         description="LJ argon at 85K, 1bar (NPT): liquid density ≈ 1.40 g/cm³ (experimental)",
         citation="Rahman (1964) Phys. Rev. 136 A405; NIST",
-        intent=_md_intent("argon_lj",85.0,30_000,42),
-        tolerances=[ToleranceSpec(quantity_name="density_g_cm3",expected_value=1.40,rtol=0.06)]),
-    ReferenceCase(name="md_water_density",engine="openmm_md",
+        intent=_md_intent("argon_lj", 85.0, 30_000, 42),
+        tolerances=[ToleranceSpec(quantity_name="density_g_cm3", expected_value=1.40, rtol=0.06)],
+    ),
+    ReferenceCase(
+        name="md_water_density",
+        engine="openmm_md",
         description="TIP3P water at 298K, 1bar (NPT): density ≈ 0.98 g/cm³",
         citation="Jorgensen et al. (1983) J. Chem. Phys. 79, 926",
-        intent=_md_intent("tip3p_water_box",298.0,30_000,42),
-        tolerances=[ToleranceSpec(quantity_name="density_g_cm3",expected_value=0.98,rtol=0.04)]),
+        intent=_md_intent("tip3p_water_box", 298.0, 30_000, 42),
+        tolerances=[ToleranceSpec(quantity_name="density_g_cm3", expected_value=0.98, rtol=0.04)],
+    ),
 ]

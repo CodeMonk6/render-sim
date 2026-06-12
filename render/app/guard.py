@@ -17,6 +17,7 @@ without standing up a full auth stack:
 
 Wired in :mod:`render.app.main` via ``app.middleware("http")``.
 """
+
 from __future__ import annotations
 
 import os

@@ -1,4 +1,5 @@
 """Tests for ground_check, InterpretResult, and interpret."""
+
 from __future__ import annotations
 
 from render.interpret import InterpretResult, ground_check, interpret
@@ -22,6 +23,7 @@ def _make_intent() -> Intent:
 
 
 # ── ground_check ──────────────────────────────────────────────────────────────
+
 
 def test_ground_check_passes_when_numbers_in_bundle():
     bundle = _make_bundle(("energy", 3.14159), ("period", 6.28318))
@@ -65,12 +67,14 @@ def test_ground_check_rtol_boundary():
 
 # ── interpret (template fallback, no API key needed) ──────────────────────────
 
+
 def test_interpret_returns_intrepretresult():
     bundle = _make_bundle(("period", 6.28), ("energy_max", 0.5))
     validation = ValidationReport(passed=True, confidence=0.95)
     intent = _make_intent()
-    result = interpret(intent, bundle, validation, engine_status="certified",
-                       api_key="invalid-key")  # will fall back to template
+    result = interpret(
+        intent, bundle, validation, engine_status="certified", api_key="invalid-key"
+    )  # will fall back to template
     assert isinstance(result, InterpretResult)
 
 

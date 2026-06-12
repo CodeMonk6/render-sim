@@ -60,8 +60,12 @@ def _exponential_decay(t: float, y: list[float], k: float = 1.0) -> list[float]:
 
 
 def _lotka_volterra(
-    t: float, y: list[float], alpha: float = 1.0, beta: float = 0.1,
-    delta: float = 0.075, gamma: float = 1.5
+    t: float,
+    y: list[float],
+    alpha: float = 1.0,
+    beta: float = 0.1,
+    delta: float = 0.075,
+    gamma: float = 1.5,
 ) -> list[float]:
     x, p = y
     return [alpha * x - beta * x * p, delta * x * p - gamma * p]
@@ -71,9 +75,7 @@ def _van_der_pol(t: float, y: list[float], mu: float = 1.0) -> list[float]:
     return [y[1], mu * (1 - y[0] ** 2) * y[1] - y[0]]
 
 
-def _sir(
-    t: float, y: list[float], beta: float = 0.3, gamma: float = 0.1
-) -> list[float]:
+def _sir(t: float, y: list[float], beta: float = 0.3, gamma: float = 0.1) -> list[float]:
     S, I, R = y
     N = S + I + R
     return [-beta * S * I / N, beta * S * I / N - gamma * I, gamma * I]
@@ -165,6 +167,7 @@ class SciPyODEAdapter:
         # may extract extra/foreign keys, and an unexpected kwarg would otherwise
         # crash the integration.  Dropped keys are recorded for transparency.
         import inspect
+
         accepted = set(inspect.signature(sys_fn).parameters) - {"t", "y"}
         used = {k: v for k, v in params.items() if k in accepted}
         ignored = sorted(set(params) - accepted)
@@ -186,10 +189,18 @@ class SciPyODEAdapter:
         step = max(1, len(sol.t) // 200)
         series = {
             "title": f"{system_name} trajectory",
-            "x": {"name": "time", "unit": "", "values": [round(float(t), 5) for t in sol.t[::step]]},
-            "y": [{"name": labels[j] if j < len(labels) else f"y{j}",
-                   "values": [round(float(v), 6) for v in sol.y[j][::step]]}
-                  for j in range(sol.y.shape[0])],
+            "x": {
+                "name": "time",
+                "unit": "",
+                "values": [round(float(t), 5) for t in sol.t[::step]],
+            },
+            "y": [
+                {
+                    "name": labels[j] if j < len(labels) else f"y{j}",
+                    "values": [round(float(v), 6) for v in sol.y[j][::step]],
+                }
+                for j in range(sol.y.shape[0])
+            ],
         }
 
         summary = {
@@ -204,8 +215,10 @@ class SciPyODEAdapter:
             "series": series,
         }
         # Store trajectory as CSV-like text in stdout
-        rows = ["\t".join([str(sol.t[i])] + [str(sol.y[j, i]) for j in range(sol.y.shape[0])])
-                for i in range(len(sol.t))]
+        rows = [
+            "\t".join([str(sol.t[i])] + [str(sol.y[j, i]) for j in range(sol.y.shape[0])])
+            for i in range(len(sol.t))
+        ]
         return RawOutputs(
             engine=self.name,
             exit_code=0 if sol.success else 1,
@@ -234,6 +247,7 @@ class SciPyODEAdapter:
 
 # Reference cases
 
+
 def _ode_intent(system: str, y0: list[float], t_end: float, params: dict) -> Intent:
     return Intent(
         mode="simulation_explicit",
@@ -241,8 +255,11 @@ def _ode_intent(system: str, y0: list[float], t_end: float, params: dict) -> Int
         family="ode",
         engine="scipy_ode",
         parameters={
-            "system": system, "y0": y0, "t_end": t_end,
-            "params": params, "n_points": 500,
+            "system": system,
+            "y0": y0,
+            "t_end": t_end,
+            "params": params,
+            "n_points": 500,
         },
         constraints=[Constraint(name="system", value=system)],
     )

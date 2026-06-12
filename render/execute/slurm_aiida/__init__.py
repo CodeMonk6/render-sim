@@ -123,9 +123,7 @@ class SlurmRunner:
                 manifest_file = d / "manifest.json"
                 break
         if manifest_file is None or not manifest_file.exists():
-            raise FileNotFoundError(
-                f"Manifest for job {job_id} not found in {self.work_dir}"
-            )
+            raise FileNotFoundError(f"Manifest for job {job_id} not found in {self.work_dir}")
         return RunManifest.model_validate_json(manifest_file.read_text())
 
     def submit_and_wait(self, adapter: EngineAdapter, intent: Intent) -> RunManifest:
@@ -162,7 +160,7 @@ class SlurmRunner:
             "# Initialize RIS module system, then activate render conda env",
             "source /etc/profile >/dev/null 2>&1 || true",
             "ml load ris >/dev/null 2>&1 || true",
-            "source \"$HOME/.render_c2_env\"",
+            'source "$HOME/.render_c2_env"',
         ]
         env = adapter.environment
         if env.module_name:
@@ -173,7 +171,7 @@ class SlurmRunner:
             "set -euo pipefail",
             f"cd {job_dir}",
             f"{self.python_cmd} -c \\"
-            f"\"from render.execute.slurm_aiida._runner import run_job; "
+            f'"from render.execute.slurm_aiida._runner import run_job; '
             f"run_job('{adapter.name}', 'intent.json', 'manifest.json')\"",
         ]
         return "\n".join(lines) + "\n"

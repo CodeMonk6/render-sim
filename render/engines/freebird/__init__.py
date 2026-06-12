@@ -17,6 +17,7 @@ Two modes:
                         (Lennard-Jones 1924); used as the certification gate.
   - ``lj_cluster_mc`` — real seeded Metropolis MC of an N-atom LJ cluster.
 """
+
 from __future__ import annotations
 
 import json
@@ -60,8 +61,9 @@ class FreeBirdIntent(BaseModel):
     epsilon_eV: float = Field(default=0.0103, gt=0, description="LJ well depth ε (eV)")
     sigma_ang: float = Field(default=3.4, gt=0, description="LJ σ (Å)")
     cutoff_sigma: float = Field(default=4.0, gt=0, description="LJ cutoff in units of σ")
-    r_over_sigma: float = Field(default=_R_MIN_OVER_SIGMA, gt=0,
-                                description="lj_pair: separation in units of σ")
+    r_over_sigma: float = Field(
+        default=_R_MIN_OVER_SIGMA, gt=0, description="lj_pair: separation in units of σ"
+    )
     n_atoms: int = Field(default=6, ge=2, le=200, description="lj_cluster_mc: number of atoms")
     temperature: float = Field(default=80.0, gt=0, description="lj_cluster_mc: temperature (K)")
     n_steps: int = Field(default=2000, ge=100, description="lj_cluster_mc: MC sampling steps")
@@ -79,8 +81,11 @@ class FreeBirdAdapter:
     version: ClassVar[str] = "0.2.1"
     runtime: ClassVar[str] = "either"
     environment: EnvSpec = EnvSpec(
-        env_type="conda", packages=["julia>=1.10", "FreeBird.jl>=0.2.1"], module_name="",
-        notes="Install Julia (juliaup), then in Julia: ]add FreeBird Unitful")
+        env_type="conda",
+        packages=["julia>=1.10", "FreeBird.jl>=0.2.1"],
+        module_name="",
+        notes="Install Julia (juliaup), then in Julia: ]add FreeBird Unitful",
+    )
 
     regime: RegimeSpec = RegimeSpec(bounds=[], notes="LJ reduced units; T* = T/(ε/k_B).")
 
@@ -95,8 +100,9 @@ class FreeBirdAdapter:
     def validate(self, intent: Intent) -> ValidationReport:
         mode = intent.parameters.get("mode", "lj_pair")
         if mode not in ("lj_pair", "lj_cluster_mc"):
-            return ValidationReport(passed=False, failed_layer=1,
-                                    errors=[f"Unknown FreeBird mode '{mode}'"])
+            return ValidationReport(
+                passed=False, failed_layer=1, errors=[f"Unknown FreeBird mode '{mode}'"]
+            )
         return ValidationReport(passed=True)
 
     def build_inputs(self, intent: Intent) -> EngineInputs:
@@ -107,26 +113,38 @@ class FreeBirdAdapter:
         if julia is None:
             raise ImportError(
                 "Julia not found. Install juliaup (https://julialang.org/install) then run "
-                "in Julia: ]add FreeBird Unitful   (or set RENDER_JULIA to the julia binary).")
+                "in Julia: ]add FreeBird Unitful   (or set RENDER_JULIA to the julia binary)."
+            )
         p = inputs.params
         mode = p.get("mode", "lj_pair")
-        script = (self._script_lj_pair(p) if mode == "lj_pair" else self._script_cluster_mc(p))
-        proc = subprocess.run([julia, "--startup-file=no", "-e", script],
-                              capture_output=True, text=True, timeout=600)
+        script = self._script_lj_pair(p) if mode == "lj_pair" else self._script_cluster_mc(p)
+        proc = subprocess.run(
+            [julia, "--startup-file=no", "-e", script], capture_output=True, text=True, timeout=600
+        )
         if proc.returncode != 0:
-            return RawOutputs(engine=self.name, exit_code=proc.returncode,
-                              stderr=proc.stderr[-2000:], files={})
-        line = next((ln for ln in proc.stdout.splitlines() if ln.startswith("RENDER_RESULT ")), None)
+            return RawOutputs(
+                engine=self.name, exit_code=proc.returncode, stderr=proc.stderr[-2000:], files={}
+            )
+        line = next(
+            (ln for ln in proc.stdout.splitlines() if ln.startswith("RENDER_RESULT ")), None
+        )
         if line is None:
-            return RawOutputs(engine=self.name, exit_code=1,
-                              stderr="No RENDER_RESULT in Julia output:\n" + proc.stdout[-1500:],
-                              files={})
-        summary = json.loads(line[len("RENDER_RESULT "):])
-        return RawOutputs(engine=self.name, exit_code=0, files={"summary.json": json.dumps(summary)})
+            return RawOutputs(
+                engine=self.name,
+                exit_code=1,
+                stderr="No RENDER_RESULT in Julia output:\n" + proc.stdout[-1500:],
+                files={},
+            )
+        summary = json.loads(line[len("RENDER_RESULT ") :])
+        return RawOutputs(
+            engine=self.name, exit_code=0, files={"summary.json": json.dumps(summary)}
+        )
 
     def _script_lj_pair(self, p: dict) -> str:
-        eps = float(p.get("epsilon_eV", 0.0103)); sig = float(p.get("sigma_ang", 3.4))
-        cut = float(p.get("cutoff_sigma", 4.0)); rov = float(p.get("r_over_sigma", _R_MIN_OVER_SIGMA))
+        eps = float(p.get("epsilon_eV", 0.0103))
+        sig = float(p.get("sigma_ang", 3.4))
+        cut = float(p.get("cutoff_sigma", 4.0))
+        rov = float(p.get("r_over_sigma", _R_MIN_OVER_SIGMA))
         return f"""
 using FreeBird, Unitful
 lj = LJParameters(epsilon={eps}, sigma={sig}, cutoff={cut})
@@ -137,10 +155,14 @@ println("RENDER_RESULT {{\\"pair_energy_eV\\": $(e), \\"well_depth_eV\\": {eps},
 """
 
     def _script_cluster_mc(self, p: dict) -> str:
-        eps = float(p.get("epsilon_eV", 0.0103)); sig = float(p.get("sigma_ang", 3.4))
-        cut = float(p.get("cutoff_sigma", 4.0)); n = int(p.get("n_atoms", 6))
-        temp = float(p.get("temperature", 80.0)); nsteps = int(p.get("n_steps", 2000))
-        seed = int(p.get("seed", 42)); vol = (sig ** 3) * 2.0  # generous box per atom
+        eps = float(p.get("epsilon_eV", 0.0103))
+        sig = float(p.get("sigma_ang", 3.4))
+        cut = float(p.get("cutoff_sigma", 4.0))
+        n = int(p.get("n_atoms", 6))
+        temp = float(p.get("temperature", 80.0))
+        nsteps = int(p.get("n_steps", 2000))
+        seed = int(p.get("seed", 42))
+        vol = (sig**3) * 2.0  # generous box per atom
         return f"""
 using FreeBird, Unitful, Logging
 Logging.disable_logging(Logging.Info)
@@ -168,16 +190,26 @@ println("RENDER_RESULT {{\\"energy_per_atom_eV\\": $(emean), \\"acceptance_rate\
             q.append(Quantity(name="acceptance_rate", value=s["acceptance_rate"]))
         if "temperature_K" in s:
             q.append(Quantity(name="temperature_K", value=s["temperature_K"], unit="K"))
-        return ResultBundle(engine=self.name, quantities=q,
-                            converged=s.get("converged", True), metadata=s)
+        return ResultBundle(
+            engine=self.name, quantities=q, converged=s.get("converged", True), metadata=s
+        )
 
 
 def _fb_pair_intent(r_over_sigma: float, title: str) -> Intent:
     return Intent(
-        mode="simulation_explicit", question=title, family="atomistic_mc", engine="freebird_mc",
-        parameters={"mode": "lj_pair", "epsilon_eV": 0.0103, "sigma_ang": 3.4,
-                    "cutoff_sigma": 4.0, "r_over_sigma": r_over_sigma},
-        constraints=[Constraint(name="mode", value="lj_pair")])
+        mode="simulation_explicit",
+        question=title,
+        family="atomistic_mc",
+        engine="freebird_mc",
+        parameters={
+            "mode": "lj_pair",
+            "epsilon_eV": 0.0103,
+            "sigma_ang": 3.4,
+            "cutoff_sigma": 4.0,
+            "r_over_sigma": r_over_sigma,
+        },
+        constraints=[Constraint(name="mode", value="lj_pair")],
+    )
 
 
 _REFERENCE_CASES: list[ReferenceCase] = [
@@ -187,7 +219,9 @@ _REFERENCE_CASES: list[ReferenceCase] = [
         description="LJ pair potential minimum (r = 2^(1/6) σ) equals -ε (well depth)",
         citation="Lennard-Jones (1924); FreeBird.jl JCTC 2025, 21, 10765",
         intent=_fb_pair_intent(_R_MIN_OVER_SIGMA, "LJ pair well depth"),
-        tolerances=[ToleranceSpec(quantity_name="pair_energy_eV", expected_value=-0.0103, rtol=0.01)],
+        tolerances=[
+            ToleranceSpec(quantity_name="pair_energy_eV", expected_value=-0.0103, rtol=0.01)
+        ],
     ),
     ReferenceCase(
         name="fb_lj_zero_crossing",

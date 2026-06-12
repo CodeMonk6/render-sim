@@ -77,8 +77,15 @@ def interpret(
     grounding: ValidationReport | None = None
     for attempt in range(2):
         try:
-            text = _llm_interpret(intent, bundle, validation, engine_status,
-                                  model=model, api_key=api_key, strict=(attempt == 1))
+            text = _llm_interpret(
+                intent,
+                bundle,
+                validation,
+                engine_status,
+                model=model,
+                api_key=api_key,
+                strict=(attempt == 1),
+            )
         except Exception:
             text = None
             break
@@ -117,9 +124,7 @@ def _llm_interpret(
     if model == _DEFAULT_MODEL:
         model = _get_default_model(provider)
 
-    qty_lines = "\n".join(
-        f"  {q.name} = {q.value} {q.unit}".rstrip() for q in bundle.quantities
-    )
+    qty_lines = "\n".join(f"  {q.name} = {q.value} {q.unit}".rstrip() for q in bundle.quantities)
     convergence = "converged" if bundle.converged else "DID NOT CONVERGE"
     regime_note = "" if validation.in_regime else " (out of validated regime — treat with caution)"
 
@@ -135,8 +140,8 @@ def _llm_interpret(
     strict_note = (
         "\nIMPORTANT: use ONLY the exact numbers listed above (rounding is fine). Do not introduce "
         "any other number, date, or derived figure. A rate such as 0.98 may be written as 98%."
-        if strict else
-        "\nYou may write a rate like 0.98 as 98%. Keep numbers faithful to the list above."
+        if strict
+        else "\nYou may write a rate like 0.98 as 98%. Keep numbers faithful to the list above."
     )
     user = (
         f"The user asked: {intent.question}\n"

@@ -5,6 +5,7 @@ share identical behaviour.  Maps the pipeline's ``status`` onto HTTP semantics:
 ``clarify``/``abstain`` are normal 200 responses (the UI shows the message),
 while genuine engine/parse failures surface as 4xx/5xx.
 """
+
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException

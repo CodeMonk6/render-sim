@@ -221,9 +221,7 @@ class HarmonicOscillatorAdapter:
             Quantity(name="amplitude", value=summary["A"], unit="m"),
         ]
         meta = {"series": summary["series"]} if "series" in summary else {}
-        return ResultBundle(
-            engine=self.name, quantities=quantities, converged=True, metadata=meta
-        )
+        return ResultBundle(engine=self.name, quantities=quantities, converged=True, metadata=meta)
 
 
 # ── Reference cases ───────────────────────────────────────────────────────────

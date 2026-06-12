@@ -3,6 +3,7 @@
 The guards must be a no-op by default and only activate when their environment
 variables are set, so the public/static surface always stays reachable.
 """
+
 from __future__ import annotations
 
 import pytest

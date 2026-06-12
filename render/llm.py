@@ -6,6 +6,7 @@ Auto-selects provider:
 
 Override with RENDER_LLM_MODEL for a different model on either provider.
 """
+
 from __future__ import annotations
 
 import os
@@ -50,12 +51,13 @@ def get_default_model(provider: str | None = None) -> str:
 def make_instructor_client(provider: str, key: str) -> Any:
     """Return an instructor-wrapped client for the given provider."""
     import instructor
+
     if provider == "openrouter":
         import openai
-        return instructor.from_openai(
-            openai.OpenAI(base_url=_OPENROUTER_BASE, api_key=key)
-        )
+
+        return instructor.from_openai(openai.OpenAI(base_url=_OPENROUTER_BASE, api_key=key))
     import anthropic
+
     return instructor.from_anthropic(anthropic.Anthropic(api_key=key or None))  # type: ignore[arg-type]
 
 
@@ -102,6 +104,7 @@ def raw_text_call(
     """Make a raw (non-structured) LLM call and return the text response."""
     if provider == "openrouter":
         import openai
+
         oc = openai.OpenAI(base_url=_OPENROUTER_BASE, api_key=key)
         msg = oc.chat.completions.create(
             model=model,
@@ -113,6 +116,7 @@ def raw_text_call(
         )
         return msg.choices[0].message.content or ""
     import anthropic
+
     ac = anthropic.Anthropic(api_key=key or None)  # type: ignore[arg-type]
     msg = ac.messages.create(
         model=model,

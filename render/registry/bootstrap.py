@@ -65,8 +65,8 @@ class BootstrapReport:
 
     registered: list[str] = field(default_factory=list)
     already_present: list[str] = field(default_factory=list)
-    skipped: list[tuple[str, str]] = field(default_factory=list)   # (spec, reason)
-    errors: list[tuple[str, str]] = field(default_factory=list)    # (spec, reason)
+    skipped: list[tuple[str, str]] = field(default_factory=list)  # (spec, reason)
+    errors: list[tuple[str, str]] = field(default_factory=list)  # (spec, reason)
 
     @property
     def ok(self) -> bool:
@@ -82,6 +82,7 @@ def register_all_engines(reg: EngineRegistry | None = None) -> BootstrapReport:
     """
     if reg is None:
         from render.registry import registry as _singleton
+
         reg = _singleton
 
     report = BootstrapReport()
