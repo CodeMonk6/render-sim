@@ -44,7 +44,12 @@
       <div class="chips" id="examples"></div>
       <div class="composer-foot">
         <div class="opts">
-          <input type="text" id="engine" class="eng-input" placeholder="Engine (optional)">
+          <div class="combo" id="engine-combo">
+            <input type="text" id="engine" class="eng-input" placeholder="Auto · pick engine…"
+                   autocomplete="off" role="combobox" aria-expanded="false" aria-controls="engine-menu">
+            <span class="combo-caret" aria-hidden="true">▾</span>
+            <div class="combo-menu" id="engine-menu" hidden role="listbox"></div>
+          </div>
           <label class="check"><input type="checkbox" id="dry"> <span>Dry run</span></label>
         </div>
         <div class="actions">

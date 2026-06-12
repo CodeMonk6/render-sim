@@ -7,6 +7,10 @@ const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) =>
 
 const PALETTE = ["#4f46e5", "#0f9d6b", "#be123c", "#b7791f", "#7c3aed", "#0891b2"];
 
+let ENGINES = [];        // {name, family, status} — populated from /coverage
+let comboActive = -1;    // keyboard-highlighted index in the open menu
+let comboItems = [];     // engine names currently shown (in order)
+
 const EXAMPLES = [
   "Model a measles outbreak (R₀ ≈ 4) in a town of 50,000 with 5 initial infections over 180 days",
   "Simulate a damped harmonic oscillator, ω₀ = 2 rad/s, damping ratio 0.1, x₀ = 1, for 20 s",
@@ -28,9 +32,81 @@ function init() {
   $("q").addEventListener("keydown", (e) => {
     if ((e.metaKey || e.ctrlKey) && e.key === "Enter") submitAsk();
   });
+  initEngineCombo();
   loadHealth();
   loadCoverage();
   loadHistory();
+}
+
+/* ---------------- engine picker (combobox) ---------------- */
+function initEngineCombo() {
+  const input = $("engine");
+  input.addEventListener("focus", () => openCombo(input.value));
+  input.addEventListener("click", () => openCombo(input.value));
+  input.addEventListener("input", () => openCombo(input.value));
+  input.addEventListener("keydown", onComboKey);
+  document.querySelector(".combo-caret").addEventListener("mousedown", (e) => {
+    e.preventDefault();
+    const m = $("engine-menu");
+    if (m.hidden) { input.focus(); openCombo(""); } else closeCombo();
+  });
+  document.addEventListener("click", (e) => {
+    if (!$("engine-combo").contains(e.target)) closeCombo();
+  });
+}
+function openCombo(filter) {
+  const menu = $("engine-menu");
+  const f = (filter || "").trim().toLowerCase();
+  const matches = ENGINES.filter((e) =>
+    e.name.toLowerCase().includes(f) || e.family.toLowerCase().includes(f));
+  comboItems = [];
+  let html = "";
+  // "Auto" sentinel — let Render choose the engine from the question.
+  if (!f || "auto".includes(f) || "automatic".includes(f)) {
+    html += `<div class="combo-item auto" data-name=""><span class="dot" style="background:var(--accent)"></span>
+      <span class="ci-name">Auto — let Render choose</span></div>`;
+    comboItems.push("");
+  }
+  let lastFam = null;
+  for (const e of matches) {
+    if (e.family !== lastFam) { html += `<div class="combo-group">${esc(e.family)}</div>`; lastFam = e.family; }
+    const cls = e.status === "certified" ? "cert" : "exp";
+    html += `<div class="combo-item" data-name="${esc(e.name)}">
+      <span class="dot ${cls}"></span><span class="ci-name">${esc(e.name)}</span>
+      <span class="ci-fam">${e.status === "certified" ? "✓ certified" : "⚠ experimental"}</span></div>`;
+    comboItems.push(e.name);
+  }
+  if (!comboItems.length) html = `<div class="combo-empty">No engine matches “${esc(f)}”</div>`;
+  menu.innerHTML = html;
+  menu.hidden = false;
+  $("engine").setAttribute("aria-expanded", "true");
+  comboActive = -1;
+  menu.querySelectorAll(".combo-item").forEach((el) => {
+    el.addEventListener("mousedown", (ev) => { ev.preventDefault(); selectEngine(el.dataset.name); });
+  });
+}
+function closeCombo() {
+  $("engine-menu").hidden = true;
+  $("engine").setAttribute("aria-expanded", "false");
+  comboActive = -1;
+}
+function selectEngine(name) {
+  $("engine").value = name;   // "" = Auto
+  closeCombo();
+}
+function onComboKey(e) {
+  const menu = $("engine-menu");
+  if (menu.hidden && (e.key === "ArrowDown" || e.key === "ArrowUp")) { openCombo($("engine").value); return; }
+  const items = [...menu.querySelectorAll(".combo-item")];
+  if (e.key === "ArrowDown") { e.preventDefault(); comboActive = Math.min(comboActive + 1, items.length - 1); }
+  else if (e.key === "ArrowUp") { e.preventDefault(); comboActive = Math.max(comboActive - 1, 0); }
+  else if (e.key === "Enter") {
+    if (comboActive >= 0 && comboActive < comboItems.length) { e.preventDefault(); selectEngine(comboItems[comboActive]); }
+    return;
+  } else if (e.key === "Escape") { closeCombo(); return; }
+  else return;
+  items.forEach((el, i) => el.classList.toggle("active", i === comboActive));
+  if (items[comboActive]) items[comboActive].scrollIntoView({ block: "nearest" });
 }
 
 async function loadHealth() {
@@ -276,6 +352,9 @@ async function loadCoverage() {
       `<div class="stat"><div class="n">${d.total_engines}</div><div class="l">Engines</div></div>
        <div class="stat cert"><div class="n">${d.certified}</div><div class="l">Certified</div></div>
        <div class="stat exp"><div class="n">${d.experimental}</div><div class="l">Experimental</div></div>`;
+    // Flat engine list (newest selection picker reads this).
+    ENGINES = (d.families || []).flatMap((f) =>
+      f.engines.map((e) => ({ name: e.name, family: f.family, status: e.status })));
     $("cov-errors").innerHTML = (d.registration_errors?.length)
       ? `<div class="cov-err"><strong>⚠ Registration errors:</strong> ${d.registration_errors.map(esc).join("; ")}</div>` : "";
     $("cov-families").innerHTML = (d.families || []).map((f) => {
