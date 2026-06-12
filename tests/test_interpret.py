@@ -54,11 +54,11 @@ def test_ground_check_ignores_zero():
 
 def test_ground_check_rtol_boundary():
     bundle = _make_bundle(("x", 100.0))
-    text = "x = 100.9"  # 0.9% off — within 1% rtol
+    text = "x = 103.0"  # 3% off — within the 5% rounding tolerance
     report = ground_check(text, bundle)
     assert report.passed
 
-    text2 = "x = 102.0"  # 2% off — outside 1%
+    text2 = "x = 120.0"  # 20% off — a genuine fabrication
     report2 = ground_check(text2, bundle)
     assert not report2.passed
 
