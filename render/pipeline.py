@@ -157,6 +157,7 @@ def run_question(
             status="abstain", question=question, message=clarify.message,
             engine_name=adapter.name, engine_family=adapter.family,
             engine_status=adapter.status, validation_passed=False, pathways=pathway_dicts,
+            parameters=dict(intent.parameters),
         )
 
     if dry_run:

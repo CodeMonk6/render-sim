@@ -41,9 +41,14 @@ class MaterialsIntent(BaseModel):
     supercell_matrix: list[int] = Field(default_factory=lambda: [1,1,1], description="Supercell repeats [a,b,c]")
     miller_index: list[int] = Field(default_factory=lambda: [0,0,1], description="Miller index for slab")
     slab_layers: int = Field(default=4, ge=1)
+    cubic: bool = Field(default=True, description="Build the conventional cubic cell (vs primitive)")
 
 class ASEAdapter:
     name: str = "ase_materials"; family: str = "materials_utils"; status: TrustStatus = "certified"
+    description: ClassVar[str] = (
+        "materials structure utilities via ASE: build bulk crystals/molecules, supercells, surface "
+        "slabs, format conversion (CIF/XYZ/POSCAR), cell volume/atom counts"
+    )
     version: ClassVar[str] = "1.0.0"; runtime: ClassVar[str] = "either"
     environment: EnvSpec = EnvSpec(env_type="pip",packages=["ase>=3.23","pymatgen>=2024.5"],
         notes="pip install ase pymatgen")
@@ -76,8 +81,9 @@ class ASEAdapter:
         if op=="build_bulk":
             formula=p.get("formula","Si"); cs=p.get("crystal_structure","diamond")
             a=float(p.get("lattice_constant_ang",0.0)) or None
-            if a: atoms=bulk(formula,crystalstructure=cs,a=a)
-            else: atoms=bulk(formula,crystalstructure=cs)
+            cubic=bool(p.get("cubic",True))
+            if a: atoms=bulk(formula,crystalstructure=cs,a=a,cubic=cubic)
+            else: atoms=bulk(formula,crystalstructure=cs,cubic=cubic)
             result={"formula":formula,"n_atoms":len(atoms),"cell_volume_ang3":float(atoms.get_volume()),
                     "positions":atoms.get_positions().tolist()}
         elif op=="build_molecule":

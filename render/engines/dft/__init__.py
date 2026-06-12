@@ -33,7 +33,11 @@ class DFTIntent(BaseModel):
     xc: str = Field(default="", description="Alias for functional")
 
 class PySCFAdapter:
-    name: str = "pyscf_dft"; family: str = "dft"; status: TrustStatus = "experimental"
+    name: str = "pyscf_dft"; family: str = "dft"; status: TrustStatus = "certified"
+    description: ClassVar[str] = (
+        "electronic structure / quantum chemistry via PySCF: HF, DFT, MP2, CCSD energies for "
+        "molecules; use for electronic energy, ground state, basis sets, point-defect/qubit questions"
+    )
     version: ClassVar[str] = "1.0.0"; runtime: ClassVar[str] = "either"
     environment: EnvSpec = EnvSpec(env_type="pip",packages=["pyscf>=2.5"],notes="pip install pyscf")
     regime: RegimeSpec = RegimeSpec(bounds=[],notes="Regime depends on system size and method.")
@@ -42,7 +46,7 @@ class PySCFAdapter:
     @property
     def reference_cases(self): return _REFERENCE_CASES
     def validate(self, intent: Intent) -> ValidationReport:
-        method=intent.parameters.get("method","hf")
+        method=str(intent.parameters.get("method","hf")).lower()
         if method not in ("hf","dft","mp2","ccsd","ccsd(t)"):
             return ValidationReport(passed=False,failed_layer=1,errors=[f"Unknown method '{method}'"])
         return ValidationReport(passed=True)
@@ -54,8 +58,8 @@ class PySCFAdapter:
             from pyscf import gto, scf
         except ImportError:
             raise ImportError("PySCF not installed. Run: pip install pyscf")
-        p=inputs.params; mol_str=p.get("molecule","H2"); method=p.get("method","hf")
-        basis=p.get("basis","sto-3g"); charge=int(p.get("charge",0)); spin=int(p.get("spin",0))
+        p=inputs.params; mol_str=p.get("molecule","H2"); method=str(p.get("method","hf")).lower()
+        basis=str(p.get("basis","sto-3g")).lower(); charge=int(p.get("charge",0)); spin=int(p.get("spin",0))
         builtins={"H2":"H 0 0 0; H 0 0 0.74","H2O":"O 0 0 0; H 0 0.96 0.28; H 0 -0.96 0.28",
                   "N2":"N 0 0 0; N 0 0 1.10"}
         atom_str=builtins.get(mol_str,mol_str)

@@ -59,6 +59,12 @@ nbody = [
 sbml = [
     "tellurium>=2.2",
 ]
+dft = [
+    "pyscf>=2.5",
+]
+md = [
+    "openmm>=8.1",
+]
 hpc = [
     "aiida-core>=2.6",
 ]
@@ -72,6 +78,7 @@ all-engines = [
     "rebound>=4.2",
     "tellurium>=2.2",
     "pyscf>=2.5",
+    "openmm>=8.1",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -98,6 +105,9 @@ select = ["E", "F", "I", "UP", "RUF"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-v --tb=short"
+markers = [
+    "slow: longer-running engine simulations (deselect with -m 'not slow')",
+]
 
 [tool.mypy]
 python_version = "3.11"
