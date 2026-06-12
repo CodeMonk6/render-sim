@@ -15,13 +15,27 @@ user who selects a pathway.
 
 from __future__ import annotations
 
-import os
 from typing import Any
 
 import anthropic
 import instructor
 from pydantic import BaseModel, Field
 
+from render.llm import (
+    get_api_key as _get_api_key,
+)
+from render.llm import (
+    get_default_model as _get_default_model,
+)
+from render.llm import (
+    get_provider as _get_provider,
+)
+from render.llm import (
+    instructor_create as _instructor_create,
+)
+from render.llm import (
+    make_instructor_client as _make_instructor_client,
+)
 from render.types import (
     Constraint,
     Intent,
@@ -113,8 +127,17 @@ def parse_intent(
     Raises ``RuntimeError`` if the Anthropic API is unavailable or returns an
     unparseable response after MAX_RETRIES.
     """
-    key = api_key or os.environ.get("ANTHROPIC_API_KEY", "")
-    client = instructor.from_anthropic(anthropic.Anthropic(api_key=key or None))  # type: ignore[arg-type]
+    provider = _get_provider(api_key)
+    key = _get_api_key(api_key)
+    if model == _DEFAULT_MODEL:
+        model = _get_default_model(provider)
+
+    # Use module-level anthropic/instructor imports so test mocks remain valid
+    # for the Anthropic path; the OpenRouter path goes through render.llm.
+    if provider == "anthropic":
+        client = instructor.from_anthropic(anthropic.Anthropic(api_key=key or None))  # type: ignore[arg-type]
+    else:
+        client = _make_instructor_client(provider, key)
 
     families_str = ", ".join(available_families or _DEFAULT_FAMILIES)
     engines_str = ", ".join(available_engines or [])
@@ -122,13 +145,9 @@ def parse_intent(
     system = _build_system_prompt(families_str, engines_str)
 
     try:
-        extraction: _IntentExtraction = client.messages.create(
-            model=model,
-            max_tokens=1024,
-            system=system,
-            messages=[{"role": "user", "content": question}],
-            response_model=_IntentExtraction,
-            max_retries=MAX_RETRIES,
+        extraction: _IntentExtraction = _instructor_create(
+            client, provider, model, system, question, _IntentExtraction,
+            max_tokens=1024, max_retries=MAX_RETRIES,
         )
     except Exception as exc:
         raise RuntimeError(f"Intent parsing failed: {exc}") from exc
@@ -166,7 +185,7 @@ def parse_intent(
     proposal: PathwayProposal | None = None
     if extraction.mode == "property_driven":
         proposal = _propose_pathways(
-            question, intent.family, client=client, model=model, system=system
+            question, intent.family, client=client, provider=provider, model=model, system=system
         )
 
     return intent, proposal
@@ -177,6 +196,7 @@ def _propose_pathways(
     family: str,
     *,
     client: Any,
+    provider: str,
     model: str,
     system: str,
 ) -> PathwayProposal:
@@ -188,13 +208,9 @@ def _propose_pathways(
         "fidelity, and key assumptions."
     )
     try:
-        pw_ex: _PathwayExtraction = client.messages.create(
-            model=model,
-            max_tokens=1024,
-            system=system,
-            messages=[{"role": "user", "content": prompt}],
-            response_model=_PathwayExtraction,
-            max_retries=MAX_RETRIES,
+        pw_ex: _PathwayExtraction = _instructor_create(
+            client, provider, model, system, prompt, _PathwayExtraction,
+            max_tokens=1024, max_retries=MAX_RETRIES,
         )
     except Exception:
         return PathwayProposal(question=question, pathways=[], recommendation="")

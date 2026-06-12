@@ -11,10 +11,13 @@ The output carries a STATUS BADGE reflecting the engine's trust level:
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass, field
 
 from render.interpret.grounding import ground_check
+from render.llm import get_api_key as _get_api_key
+from render.llm import get_default_model as _get_default_model
+from render.llm import get_provider as _get_provider
+from render.llm import raw_text_call as _raw_text_call
 from render.types import Intent, ResultBundle, TrustStatus, ValidationReport
 
 _DEFAULT_MODEL = "claude-haiku-4-5-20251001"
@@ -100,10 +103,10 @@ def _llm_interpret(
     model: str,
     api_key: str | None,
 ) -> str:
-    import anthropic
-
-    key = api_key or os.environ.get("ANTHROPIC_API_KEY", "")
-    client = anthropic.Anthropic(api_key=key or None)  # type: ignore[arg-type]
+    provider = _get_provider(api_key)
+    key = _get_api_key(api_key)
+    if model == _DEFAULT_MODEL:
+        model = _get_default_model(provider)
 
     qty_lines = "\n".join(
         f"  {q.name} = {q.value} {q.unit}".rstrip() for q in bundle.quantities
@@ -131,13 +134,7 @@ def _llm_interpret(
         "Note any caveats from warnings."
     )
 
-    msg = client.messages.create(
-        model=model,
-        max_tokens=512,
-        system=system,
-        messages=[{"role": "user", "content": user}],
-    )
-    return msg.content[0].text
+    return _raw_text_call(provider, key, model, system, user, max_tokens=512)
 
 
 def _template_interpret(

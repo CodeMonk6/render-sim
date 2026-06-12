@@ -1,14 +1,13 @@
 """POST /ask — run a simulation from a natural-language question."""
 from __future__ import annotations
 
-import os
-
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from render.engines.reference import HarmonicOscillatorAdapter
 from render.execute.local import run_local
 from render.interpret import interpret
+from render.llm import get_api_key as _get_api_key
 from render.registry import registry
 from render.validate import clarify_or_abstain
 
@@ -48,7 +47,7 @@ async def ask(req: AskRequest) -> AskResponse:
     _ensure_engines()
     from render.intent import parse_intent
 
-    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    api_key = _get_api_key()
     families = list({a.family for a in registry.list_all()})
     engines = [a.name for a in registry.list_all()]
 

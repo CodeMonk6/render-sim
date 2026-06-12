@@ -49,7 +49,7 @@ class SlurmRunner:
     def __init__(
         self,
         *,
-        partition: str = "",
+        partition: str = "general",
         account: str = "",
         work_dir: Path = Path(".render_slurm"),
         python_cmd: str = "python",
@@ -155,12 +155,15 @@ class SlurmRunner:
         if res.gpu:
             lines.append("#SBATCH --gres=gpu:1")
 
-        # Load environment
+        # Activate render environment and load any engine-specific module
+        lines += [
+            "",
+            "# Activate render conda env",
+            "source \"$HOME/.render_c2_env\"",
+        ]
         env = adapter.environment
         if env.module_name:
-            lines += [f"module load {env.module_name}"]
-        if env.env_type == "conda" and env.packages:
-            lines += ["source activate render_env"]
+            lines += [f"ml load {env.module_name} 2>/dev/null || true"]
 
         lines += [
             "",
