@@ -8,6 +8,8 @@ within tolerance (the gate that makes the engine Certified).
 
 from __future__ import annotations
 
+import os
+
 import pytest
 
 from render.eval.runner import eval_engine
@@ -53,5 +55,32 @@ def test_md_adapter_certified_with_reference_cases():
     from render.engines.md import OpenMMAdapter
 
     adapter = OpenMMAdapter()
+    assert adapter.status == "certified"
+    assert len(adapter.reference_cases) >= 2
+
+
+@pytest.mark.slow
+def test_freebird_reference_cases():
+    """Materials/atomistic MC: LJ well depth = -ε via real FreeBird.jl.
+
+    Opt-in (runs the Julia subprocess, ~15s): set RENDER_TEST_JULIA=1.
+    """
+    if not os.environ.get("RENDER_TEST_JULIA"):
+        pytest.skip("set RENDER_TEST_JULIA=1 to run the FreeBird.jl (Julia) certification test")
+    from render.engines.freebird import FreeBirdAdapter, _julia_exe
+
+    if _julia_exe() is None:
+        pytest.skip("Julia not installed")
+    adapter = FreeBirdAdapter()
+    assert adapter.status == "certified"
+    report = eval_engine(adapter)
+    assert report.ok, [c.failures for c in report.cases if not c.passed]
+
+
+def test_freebird_adapter_certified_with_reference_cases():
+    """FreeBird adapter is Certified and carries reference cases (no Julia needed)."""
+    from render.engines.freebird import FreeBirdAdapter
+
+    adapter = FreeBirdAdapter()
     assert adapter.status == "certified"
     assert len(adapter.reference_cases) >= 2

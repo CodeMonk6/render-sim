@@ -94,7 +94,7 @@ select = ["E", "F", "I", "UP", "RUF"]
 
 [tool.ruff.lint.per-file-ignores]
 "render/app/main.py" = ["E501"]
-"render/engines/**/__init__.py" = ["E501", "E702", "E701", "E731", "E741"]
+"render/engines/**/__init__.py" = ["E501", "E702", "E701", "E731", "E741", "RUF001", "RUF002", "RUF003"]
 "tests/test_intent.py" = ["E501", "E702"]
 "tests/test_execute.py" = ["E501"]
 "render/cli/main.py" = ["E501"]
