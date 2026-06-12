@@ -38,6 +38,7 @@ from render.types import (
     TrustStatus,
     ValidationReport,
 )
+from render.validate.regime import RegimeBound, RegimeSpec
 
 
 class HarmonicIntent(BaseModel):
@@ -59,6 +60,32 @@ class HarmonicOscillatorAdapter:
     status: TrustStatus = "certified"
     runtime: ClassVar[str] = "local"
     environment: EnvSpec = EnvSpec(env_type="pip", packages=["scipy>=1.13"])
+    regime: RegimeSpec = RegimeSpec(
+        bounds=[
+            RegimeBound(
+                field="omega0",
+                min_val=1e-6,
+                max_val=1e6,
+                unit="rad/s",
+                description="Natural frequency",
+            ),
+            RegimeBound(
+                field="zeta",
+                min_val=0.0,
+                max_val=0.999,
+                unit="",
+                description="Damping ratio (underdamped only)",
+            ),
+            RegimeBound(
+                field="t_end",
+                min_val=1e-9,
+                max_val=1e4,
+                unit="s",
+                description="Simulation end time",
+            ),
+        ],
+        notes="Underdamped harmonic oscillator (zeta < 1); exact analytical solution.",
+    )
 
     @property
     def intent_schema(self) -> type[HarmonicIntent]:
