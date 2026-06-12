@@ -9,6 +9,7 @@ from fastapi.staticfiles import StaticFiles
 
 import render
 from render.app.routers import ask as ask_router
+from render.app.routers import coverage as coverage_router
 from render.app.routers import eval as eval_router
 
 app = FastAPI(
@@ -21,6 +22,7 @@ app = FastAPI(
 
 app.include_router(ask_router.router)
 app.include_router(eval_router.router)
+app.include_router(coverage_router.router)
 
 _STATIC = Path(__file__).parent / "static"
 if _STATIC.exists():
@@ -71,6 +73,22 @@ _HTML = """<!DOCTYPE html>
   .engine-chip{padding:.3rem .6rem;border-radius:4px;font-size:.8rem;border:1px solid #dee2e6}
   .engine-chip.cert{background:#d8f3dc;border-color:#95d5b2}
   .engine-chip.exp{background:#ffddd2;border-color:#ffb4a2}
+  .cov-summary{display:flex;flex-wrap:wrap;gap:.75rem;margin-bottom:1rem}
+  .stat{background:#f1f3f5;border-radius:6px;padding:.5rem .9rem;text-align:center;min-width:84px}
+  .stat .n{font-size:1.4rem;font-weight:700;color:#1a1a2e;line-height:1}
+  .stat .l{font-size:.7rem;color:#6c757d;text-transform:uppercase;letter-spacing:.04em;margin-top:.2rem}
+  .stat.cert .n{color:#2d6a4f}.stat.exp .n{color:#9b2226}
+  .fam{margin-bottom:.75rem;border:1px solid #e9ecef;border-radius:6px;overflow:hidden}
+  .fam-head{display:flex;align-items:center;gap:.5rem;background:#f8f9fa;padding:.45rem .7rem;font-weight:600;font-size:.9rem;border-bottom:1px solid #e9ecef}
+  .fam-head .count{margin-left:auto;font-size:.75rem;font-weight:500;color:#6c757d}
+  .eng-row{display:flex;align-items:center;gap:.6rem;padding:.4rem .7rem;font-size:.85rem;border-top:1px solid #f1f3f5}
+  .eng-row:first-child{border-top:none}
+  .eng-row .nm{font-weight:600;min-width:150px}
+  .eng-row .rt{color:#6c757d;font-size:.78rem}
+  .eng-row .refs{margin-left:auto;font-size:.78rem;color:#495057}
+  .pill{font-size:.68rem;font-weight:700;padding:.1rem .4rem;border-radius:3px;text-transform:uppercase;letter-spacing:.03em}
+  .pill.cert{color:#2d6a4f;background:#d8f3dc}.pill.exp{color:#9b2226;background:#ffe5db}
+  .cov-err{background:#fff3cd;border:1px solid #ffe69c;color:#664d03;border-radius:6px;padding:.5rem .8rem;font-size:.8rem;margin-bottom:1rem}
   footer{text-align:center;padding:2rem;color:#adb5bd;font-size:.85rem}
 </style>
 </head>
@@ -107,10 +125,12 @@ _HTML = """<!DOCTYPE html>
     </details>
   </div>
 
-  <!-- Engines panel -->
+  <!-- Coverage scoreboard -->
   <div class="card">
-    <h2>Available engines</h2>
-    <div id="engines-list" class="engines-grid"><span style="color:#6c757d">Loading…</span></div>
+    <h2>Engine coverage scoreboard</h2>
+    <div id="cov-summary" class="cov-summary"></div>
+    <div id="cov-errors"></div>
+    <div id="cov-families"><span style="color:#6c757d">Loading…</span></div>
   </div>
 </main>
 <footer>Render v""" + render.__version__ + """ · WashU DTRC grant 1908</footer>
@@ -165,23 +185,42 @@ function clearResults(){
   document.getElementById('results-card').style.display='none';
   document.getElementById('q').value='';
 }
-async function loadEngines(){
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+async function loadCoverage(){
+  const famBox=document.getElementById('cov-families');
+  const sumBox=document.getElementById('cov-summary');
+  const errBox=document.getElementById('cov-errors');
   try{
-    const res=await fetch('/eval');
+    const res=await fetch('/coverage');
     const data=await res.json();
-    const grid=document.getElementById('engines-list');
-    if(!data.scores||!data.scores.length){grid.innerHTML='<span style="color:#6c757d">No engines registered.</span>';return;}
+    sumBox.innerHTML=
+      '<div class="stat"><div class="n">'+data.total_engines+'</div><div class="l">Engines</div></div>'+
+      '<div class="stat"><div class="n">'+data.family_count+'</div><div class="l">Families</div></div>'+
+      '<div class="stat cert"><div class="n">'+data.certified+'</div><div class="l">Certified</div></div>'+
+      '<div class="stat exp"><div class="n">'+data.experimental+'</div><div class="l">Experimental</div></div>'+
+      '<div class="stat"><div class="n">'+data.total_reference_cases+'</div><div class="l">Ref. cases</div></div>';
+    errBox.innerHTML = (data.registration_errors&&data.registration_errors.length)
+      ? '<div class="cov-err"><strong>⚠ Registration errors:</strong> '+data.registration_errors.map(esc).join('; ')+'</div>'
+      : '';
+    if(!data.families||!data.families.length){famBox.innerHTML='<span style="color:#6c757d">No engines registered.</span>';return;}
     let html='';
-    for(const s of data.scores){
-      const cls=s.status==='certified'?'cert':'exp';
-      const icon=s.ok?'✓':'⚠';
-      html+='<div class="engine-chip '+cls+'"><strong>'+s.engine+'</strong><br>'+
-            icon+' '+s.passed+'/'+s.total+' cases · '+s.status+'</div>';
+    for(const f of data.families){
+      html+='<div class="fam"><div class="fam-head">'+esc(f.family)+
+            '<span class="count">'+f.certified+' certified · '+f.experimental+' experimental</span></div>';
+      for(const e of f.engines){
+        const cls=e.status==='certified'?'cert':'exp';
+        const refTitle=e.reference_case_names.length?' title="'+esc(e.reference_case_names.join(', '))+'"':'';
+        html+='<div class="eng-row"><span class="pill '+cls+'">'+(e.status==='certified'?'✓ cert':'⚠ exp')+'</span>'+
+              '<span class="nm">'+esc(e.name)+'</span>'+
+              '<span class="rt">'+esc(e.runtime)+(e.env_summary?' · '+esc(e.env_summary):'')+'</span>'+
+              '<span class="refs"'+refTitle+'>'+e.reference_cases+' ref case'+(e.reference_cases===1?'':'s')+'</span></div>';
+      }
+      html+='</div>';
     }
-    grid.innerHTML=html;
-  }catch(e){document.getElementById('engines-list').innerHTML='<span style="color:#e63946">Could not load engines</span>';}
+    famBox.innerHTML=html;
+  }catch(e){famBox.innerHTML='<span style="color:#e63946">Could not load coverage: '+esc(e.message)+'</span>';}
 }
-loadEngines();
+loadCoverage();
 </script>
 </body>
 </html>

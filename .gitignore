@@ -28,3 +28,4 @@ htmlcov/
 # Sensitive / local
 .env
 *.key
+.gstack/

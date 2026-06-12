@@ -4,9 +4,9 @@ from __future__ import annotations
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from render.engines.reference import HarmonicOscillatorAdapter
 from render.eval.runner import eval_engine
 from render.registry import registry
+from render.registry.bootstrap import register_all_engines
 
 router = APIRouter(prefix="/eval", tags=["eval"])
 
@@ -26,8 +26,7 @@ class EvalResponse(BaseModel):
 
 
 def _ensure_engines() -> None:
-    if "harmonic_oscillator" not in registry:
-        registry.register(HarmonicOscillatorAdapter())
+    register_all_engines(registry)
 
 
 @router.get("", response_model=EvalResponse)
@@ -36,7 +35,13 @@ async def run_eval(engine: str | None = None) -> EvalResponse:
     if engine:
         targets = [registry.get(engine)]
     else:
-        targets = [a for a in registry.list_all() if a.reference_cases]
+        # A bare /eval must never try to execute uninstalled HPC backends, so the
+        # bulk default is limited to locally-runnable engines.  Heavy engines are
+        # evaluated only when named explicitly (?engine=...).
+        targets = [
+            a for a in registry.list_all()
+            if a.reference_cases and a.runtime == "local"
+        ]
 
     scores: list[EngineScore] = []
     overall_ok = True

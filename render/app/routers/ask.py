@@ -4,11 +4,11 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from render.engines.reference import HarmonicOscillatorAdapter
 from render.execute.local import run_local
 from render.interpret import interpret
 from render.llm import get_api_key as _get_api_key
 from render.registry import registry
+from render.registry.bootstrap import register_all_engines
 from render.validate import clarify_or_abstain
 
 router = APIRouter(prefix="/ask", tags=["ask"])
@@ -38,8 +38,7 @@ class AskResponse(BaseModel):
 
 
 def _ensure_engines() -> None:
-    if "harmonic_oscillator" not in registry:
-        registry.register(HarmonicOscillatorAdapter())
+    register_all_engines(registry)
 
 
 @router.post("", response_model=AskResponse)

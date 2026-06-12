@@ -307,38 +307,6 @@ def _show_pathway_table(proposal) -> None:  # type: ignore[no-untyped-def]
 
 
 def _register_all_engines(registry) -> None:  # type: ignore[no-untyped-def]
-    """Register all available engine adapters."""
-    from render.engines.reference import HarmonicOscillatorAdapter
-    adapters_to_try = [
-        ("render.engines.ode", "SciPyODEAdapter"),
-        ("render.engines.epi", "SIRAdapter"),
-        ("render.engines.ssa", "GillesPy2Adapter"),
-        ("render.engines.des", "SimPyAdapter"),
-        ("render.engines.abm", "MesaAdapter"),
-        ("render.engines.nbody", "ReboundAdapter"),
-        ("render.engines.mcmc", "EmceeAdapter"),
-        ("render.engines.sbml", "TelluriumAdapter"),
-        ("render.engines.md", "OpenMMAdapter"),
-        ("render.engines.lammps", "LAMMPSAdapter"),
-        ("render.engines.gromacs", "GROMACSAdapter"),
-        ("render.engines.dft", "PySCFAdapter"),
-        ("render.engines.materials_utils", "ASEAdapter"),
-        ("render.engines.freebird", "FreeBirdAdapter"),
-        ("render.engines.fem", "FEniCSxAdapter"),
-        ("render.engines.em", "MeepAdapter"),
-        ("render.engines.cfd", "SU2Adapter"),
-    ]
-    if "harmonic_oscillator" not in registry:
-        registry.register(HarmonicOscillatorAdapter())
-    for module_path, class_name in adapters_to_try:
-        try:
-            import importlib
-            mod = importlib.import_module(module_path)
-            cls = getattr(mod, class_name, None)
-            if cls is None:
-                continue
-            adapter = cls()
-            if adapter.name not in registry:
-                registry.register(adapter)
-        except Exception:
-            pass
+    """Register all available engine adapters via the canonical bootstrap."""
+    from render.registry.bootstrap import register_all_engines
+    register_all_engines(registry)
