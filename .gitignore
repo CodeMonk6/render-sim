@@ -1,0 +1,30 @@
+# Keep ALL Markdown private — never track any .md file in this repo
+# (journal, chats, plan, notes, READMEs — everything). Intentional, and also
+# enforced via the global gitignore. To force-track a specific file you would
+# need `git add -f`, which the project contract forbids.
+*.md
+
+# Claude Code hook runtime state (ephemeral, per-session)
+.claude/hooks/.state/
+
+# Personal Claude Code overrides for this project
+.claude/settings.local.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+.coverage
+htmlcov/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Sensitive / local
+.env
+*.key
