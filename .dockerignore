@@ -1,0 +1,37 @@
+# Keep the build context small and reproducible.
+.git
+.github
+.gitignore
+
+# Docs, notes, and the private context system (never shipped in the image).
+*.md
+docs/
+*.pdf
+*.docx
+
+# Local run artifacts and caches.
+.render_runs/
+.render_runs
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+__pycache__/
+*.pyc
+.coverage
+htmlcov/
+
+# Virtual envs and build output.
+.venv/
+venv/
+dist/
+build/
+*.egg-info/
+
+# Tooling / editor / secrets.
+.claude/
+.gstack/
+.env
+*.key
+tests/
+hpc/
+uv.lock

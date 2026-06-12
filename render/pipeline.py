@@ -18,6 +18,7 @@ requests stay fast.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any
 
@@ -27,7 +28,9 @@ from render.registry import registry
 from render.registry.bootstrap import register_all_engines
 from render.validate import clarify_or_abstain
 
-DEFAULT_MANIFEST_DIR = Path(".render_runs")
+# Where provenance manifests are written. Override with RENDER_RUNS_DIR so a
+# container can point this at a mounted volume for persistence across restarts.
+DEFAULT_MANIFEST_DIR = Path(os.environ.get("RENDER_RUNS_DIR", ".render_runs"))
 
 
 class PipelineResult(BaseModel):

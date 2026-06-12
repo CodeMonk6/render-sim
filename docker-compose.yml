@@ -1,0 +1,26 @@
+# Local one-command run:  docker compose up --build
+# Reads your LLM key from a local .env (OPENROUTER_API_KEY or ANTHROPIC_API_KEY).
+services:
+  render:
+    build:
+      context: .
+      args:
+        # Lean default. Add heavy engines here, e.g. "dft,md,materials".
+        ENGINE_EXTRAS: ""
+        INSTALL_JULIA: "false"
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - RENDER_LLM_MODEL=${RENDER_LLM_MODEL:-}
+      # Uncomment to access-gate + rate-limit a public deployment:
+      # - RENDER_ACCESS_TOKEN=${RENDER_ACCESS_TOKEN:-}
+      # - RENDER_RATE_LIMIT=${RENDER_RATE_LIMIT:-20}
+    volumes:
+      - render-runs:/data
+    restart: unless-stopped
+
+volumes:
+  render-runs:

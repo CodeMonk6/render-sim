@@ -8,6 +8,7 @@ from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 import render
+from render.app.guard import guard_middleware
 from render.app.routers import ask as ask_router
 from render.app.routers import coverage as coverage_router
 from render.app.routers import eval as eval_router
@@ -20,6 +21,10 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc",
 )
+
+# Optional production guards (token gate + per-IP rate limit). No-op unless the
+# RENDER_ACCESS_TOKEN / RENDER_RATE_LIMIT environment variables are set.
+app.middleware("http")(guard_middleware)
 
 app.include_router(ask_router.router)
 app.include_router(eval_router.router)
