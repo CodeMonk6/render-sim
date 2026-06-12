@@ -6,7 +6,7 @@
 <title>Render · Simulation Co-pilot</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Newsreader:opsz,wght@6..72,400;6..72,500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@600;700;800&family=Newsreader:opsz,wght@6..72,400;6..72,500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
@@ -58,6 +58,15 @@
 
     <!-- Status / loading / messages -->
     <div id="flash" class="flash" hidden></div>
+
+    <!-- Loading skeleton -->
+    <div id="skeleton" class="card" hidden>
+      <div class="skeleton sk-line" style="width:38%;height:18px"></div>
+      <div class="skeleton sk-line" style="width:62%"></div>
+      <div class="skeleton sk-line" style="width:90%;height:150px;margin-top:1rem"></div>
+      <div class="skeleton sk-line" style="width:80%"></div>
+      <div class="skeleton sk-line" style="width:55%"></div>
+    </div>
 
     <!-- Results -->
     <div id="results" class="results" hidden>

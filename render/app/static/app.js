@@ -67,6 +67,7 @@ async function submitAsk() {
   const dry = $("dry").checked;
 
   $("results").hidden = true;
+  $("skeleton").hidden = false;
   setLoading(true);
   flash("loading", "Mapping your question to a validated engine and running it…");
 
@@ -83,6 +84,7 @@ async function submitAsk() {
     flash("error", "Network error", e.message);
   } finally {
     setLoading(false);
+    $("skeleton").hidden = true;
   }
 }
 
@@ -127,7 +129,7 @@ function renderResult(d) {
   if (d.quantities?.length) {
     mc.hidden = false;
     $("metrics").innerHTML = d.quantities.map((q) => {
-      const v = typeof q.value === "number" ? fmtNum(q.value) : esc(q.value);
+      const v = typeof q.value === "number" ? fmtNum(q.value, q.unit, q.name) : esc(q.value);
       return `<div class="metric"><div class="m-name" title="${esc(q.name)}">${esc(q.name)}</div>
         <div class="m-val">${v}<span class="m-unit">${esc(q.unit || "")}</span></div></div>`;
     }).join("");
@@ -173,11 +175,18 @@ function filterParams(p) {
   return out;
 }
 
-function fmtNum(x) {
-  if (!isFinite(x)) return String(x);
+const COUNT_UNITS = ["persons", "person", "people", "cells", "molecules", "individuals", "agents", "particles"];
+function fmtNum(x, unit, name) {
+  if (typeof x !== "number" || !isFinite(x)) return String(x);
   const a = Math.abs(x);
+  // Count quantities read as whole things — no fractional persons.
+  if ((unit && COUNT_UNITS.includes(unit)) || (name && /count|^n_|nfev/i.test(name))) {
+    return Math.round(x).toLocaleString();
+  }
   if (a !== 0 && (a < 1e-3 || a >= 1e6)) return x.toExponential(3);
-  return (Math.round(x * 1000) / 1000).toLocaleString();
+  // Trim to ~4 significant figures, drop trailing zeros.
+  const r = Number(x.toPrecision(4));
+  return r.toLocaleString(undefined, { maximumFractionDigits: 4 });
 }
 
 /* ---------------- SVG line chart ---------------- */
@@ -274,8 +283,9 @@ async function loadCoverage() {
         `<div class="eng-row"><span class="dot ${e.status === "certified" ? "cert" : "exp"}"></span>
           <span class="nm" title="${esc(e.name)}">${esc(e.name)}</span>
           <span class="rt">${esc(e.runtime)}${e.reference_cases ? " · " + e.reference_cases + " ref" : ""}</span></div>`).join("");
-      return `<div class="fam"><div class="fam-head">${esc(f.family)}
-        <span class="count">${f.certified}✓ ${f.experimental}⚠</span></div>${rows}</div>`;
+      const cnt = `<span class="count">${f.certified ? `<span class="c-ok">${f.certified}✓</span>` : ""}` +
+                  `${f.experimental ? `<span class="c-exp">${f.experimental}⚠</span>` : ""}</span>`;
+      return `<div class="fam"><div class="fam-head"><span class="fam-name">${esc(f.family)}</span>${cnt}</div>${rows}</div>`;
     }).join("");
   } catch (e) {
     $("cov-families").innerHTML = `<span class="muted">Could not load coverage.</span>`;
