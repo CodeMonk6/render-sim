@@ -19,12 +19,13 @@ const EXAMPLES = [
 ];
 
 /* ---------------- init ---------------- */
+const DRAFT_KEY = "render.draft";
 function init() {
   const ex = $("examples");
   EXAMPLES.forEach((t) => {
     const c = document.createElement("button");
     c.className = "chip"; c.type = "button"; c.textContent = t;
-    c.onclick = () => { $("q").value = t; $("q").focus(); };
+    c.onclick = () => { $("q").value = t; saveDraft(); $("q").focus(); };
     ex.appendChild(c);
   });
   $("run-btn").onclick = submitAsk;
@@ -32,10 +33,24 @@ function init() {
   $("q").addEventListener("keydown", (e) => {
     if ((e.metaKey || e.ctrlKey) && e.key === "Enter") submitAsk();
   });
+  $("q").addEventListener("input", saveDraft);
+  $("copy-replay").addEventListener("click", copyReplay);
+  try { const d = localStorage.getItem(DRAFT_KEY); if (d) $("q").value = d; } catch (_) {}
   initEngineCombo();
   loadHealth();
   loadCoverage();
   loadHistory();
+}
+function saveDraft() {
+  try { localStorage.setItem(DRAFT_KEY, $("q").value); } catch (_) {}
+}
+async function copyReplay() {
+  const btn = $("copy-replay");
+  try {
+    await navigator.clipboard.writeText($("prov-replay").textContent);
+    btn.textContent = "Copied"; btn.classList.add("done");
+    setTimeout(() => { btn.textContent = "Copy"; btn.classList.remove("done"); }, 1600);
+  } catch (_) { btn.textContent = "Select & copy manually"; }
 }
 
 /* ---------------- engine picker (combobox) ---------------- */
@@ -127,11 +142,18 @@ function setLoading(on) {
   b.innerHTML = on ? '<span class="spinner"></span><span class="btn-label">Running…</span>'
                    : '<span class="btn-label">Run simulation</span>';
 }
+const FLASH_ICONS = {
+  loading: '<span class="spinner spinner-ink"></span>',
+  clarify: '<svg viewBox="0 0 16 16" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6.6"/><path d="M6.2 6.4a1.8 1.8 0 1 1 2.6 1.7c-.5.3-.8.6-.8 1.2" stroke-linecap="round"/><circle cx="8" cy="11.4" r=".7" fill="currentColor" stroke="none"/></svg>',
+  abstain: '<svg viewBox="0 0 16 16" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6.6"/><path d="M3.5 12.5l9-9"/></svg>',
+  error: '<svg viewBox="0 0 16 16" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 1.8L15 13.6H1z" stroke-linejoin="round"/><path d="M8 6v3.4" stroke-linecap="round"/><circle cx="8" cy="11.6" r=".7" fill="currentColor" stroke="none"/></svg>',
+  ok: '<svg viewBox="0 0 16 16" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="8" r="6.6" stroke-width="1.5"/><path d="M5.1 8.3l2 2 3.8-4.3" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+};
 function flash(kind, title, body) {
   const f = $("flash");
-  const icon = { loading: "⏳", clarify: "❓", abstain: "⛔", error: "⚠️", ok: "✓" }[kind] || "";
   f.className = "flash " + kind;
-  f.innerHTML = `<span class="fi">${icon}</span><div><div class="flash-title">${esc(title)}</div>${body ? `<div>${esc(body)}</div>` : ""}</div>`;
+  f.innerHTML = `<span class="fi" aria-hidden="true">${FLASH_ICONS[kind] || ""}</span>` +
+    `<div><div class="flash-title">${esc(title)}</div>${body ? `<div>${esc(body)}</div>` : ""}</div>`;
   f.hidden = false;
 }
 function hideFlash() { $("flash").hidden = true; }
@@ -143,6 +165,7 @@ async function submitAsk() {
   const dry = $("dry").checked;
 
   $("results").hidden = true;
+  $("howto").hidden = true;
   $("skeleton").hidden = false;
   setLoading(true);
   flash("loading", "Mapping your question to a validated engine and running it…");
@@ -166,13 +189,15 @@ async function submitAsk() {
 
 function route(d) {
   if (d.status === "clarify") {
+    $("howto").hidden = false;
     flash("clarify", "I need a bit more detail",
       d.message + (d.missing_fields?.length ? " (" + d.missing_fields.join(", ") + ")" : ""));
     return;
   }
-  if (d.status === "abstain") { flash("abstain", "Out of scope — I won't guess", d.message); return; }
-  if (d.status === "error") { flash("error", "Run failed", d.message); return; }
+  if (d.status === "abstain") { $("howto").hidden = false; flash("abstain", "Out of scope — I won't guess", d.message); return; }
+  if (d.status === "error") { $("howto").hidden = false; flash("error", "Run failed", d.message); return; }
   if (d.status === "dry_run") {
+    $("howto").hidden = false;
     flash("ok", "Intent is valid (dry run)",
       `Engine ${d.engine_name} would run with: ${JSON.stringify(filterParams(d.parameters))}`);
     return;
@@ -184,6 +209,7 @@ function route(d) {
 /* ---------------- result rendering ---------------- */
 function renderResult(d) {
   $("results").hidden = false;
+  $("howto").hidden = true;
 
   const cert = d.engine_status === "certified";
   const badge = $("result-badge");
@@ -310,17 +336,88 @@ function drawPlot(series) {
     const dpath = s.values.map((v, i) => (i ? "L" : "M") + sx(xs[i]).toFixed(1) + " " + sy(v).toFixed(1)).join(" ");
     svg += `<path class="series-path" d="${dpath}" stroke="${color}"/>`;
   });
+  // hover layer (crosshair + dots), updated on mousemove
+  svg += `<line class="crosshair" id="ch" x1="0" y1="${Pt}" x2="0" y2="${H - Pb}" style="display:none"/>`;
+  series.y.forEach((s, idx) =>
+    svg += `<circle class="hover-dot" id="hd${idx}" r="4" fill="${PALETTE[idx % PALETTE.length]}" style="display:none"/>`);
+  svg += `<rect id="hit" x="${Pl}" y="${Pt}" width="${W - Pl - Pr}" height="${H - Pt - Pb}" fill="transparent"/>`;
   svg += `</svg>`;
   $("plot").innerHTML = svg;
 
   $("legend").innerHTML = series.y.map((s, i) =>
     `<span class="lg"><span class="sw" style="background:${PALETTE[i % PALETTE.length]}"></span>${esc(s.name)}</span>`
   ).join("");
+
+  bindPlotHover(series, { xs, sx, sy, Pt, Pb, H });
+}
+
+/* Crosshair + tooltip that snaps to the nearest x sample. */
+function bindPlotHover(series, g) {
+  const svg = $("plot").querySelector("svg");
+  const hit = svg.querySelector("#hit");
+  const ch = svg.querySelector("#ch");
+  const tip = $("plot-tip");
+  if (!hit) return;
+  const nearest = (xval) => {
+    let best = 0, bd = Infinity;
+    for (let i = 0; i < g.xs.length; i++) {
+      const d = Math.abs(g.xs[i] - xval);
+      if (d < bd) { bd = d; best = i; }
+    }
+    return best;
+  };
+  const move = (ev) => {
+    const pt = svg.createSVGPoint();
+    pt.x = ev.clientX; pt.y = ev.clientY;
+    const loc = pt.matrixTransform(svg.getScreenCTM().inverse());
+    const x0 = g.xs[0], x1 = g.xs[g.xs.length - 1];
+    // invert the x-scale to map pointer position back to a data x-value
+    const xv = x0 + (loc.x - g.sx(x0)) / (g.sx(x1) - g.sx(x0) || 1) * (x1 - x0);
+    const i = nearest(xv);
+    const px = g.sx(g.xs[i]);
+    ch.setAttribute("x1", px); ch.setAttribute("x2", px); ch.style.display = "";
+    let rows = "";
+    series.y.forEach((s, idx) => {
+      const dot = svg.querySelector("#hd" + idx);
+      const py = g.sy(s.values[i]);
+      dot.setAttribute("cx", px); dot.setAttribute("cy", py); dot.style.display = "";
+      rows += `<div class="tt-row"><span class="tt-sw" style="background:${PALETTE[idx % PALETTE.length]}"></span>` +
+              `${esc(s.name)}<span class="tt-v">${fmtTick(s.values[i])}</span></div>`;
+    });
+    const xlab = series.x.unit ? `${fmtTick(g.xs[i])} ${series.x.unit}` : fmtTick(g.xs[i]);
+    tip.innerHTML = `<div class="tt-x">${esc(series.x.name || "x")} = ${esc(xlab)}</div>${rows}`;
+    tip.hidden = false;
+    const wrapRect = $("plot").getBoundingClientRect();
+    const rel = px / 680 * wrapRect.width;
+    tip.style.left = Math.max(60, Math.min(wrapRect.width - 60, rel)) + "px";
+    tip.style.top = (g.sy(Math.max(...series.y.map((s) => s.values[i]))) / 300 * wrapRect.height) + "px";
+  };
+  const hide = () => {
+    tip.hidden = true; ch.style.display = "none";
+    series.y.forEach((_, idx) => { const d = svg.querySelector("#hd" + idx); if (d) d.style.display = "none"; });
+  };
+  hit.addEventListener("mousemove", move);
+  hit.addEventListener("mouseleave", hide);
 }
 function fmtTick(v) {
   const a = Math.abs(v);
   if (a !== 0 && (a < 1e-2 || a >= 1e5)) return v.toExponential(1);
   return (Math.round(v * 100) / 100).toLocaleString();
+}
+
+/* Human "3m ago" / "2h ago" from an ISO timestamp. */
+function relTime(ts) {
+  if (!ts) return "";
+  const t = Date.parse(ts);
+  if (isNaN(t)) return "";
+  const s = Math.max(0, (Date.now() - t) / 1000);
+  if (s < 45) return "just now";
+  if (s < 90) return "1m ago";
+  if (s < 3600) return Math.round(s / 60) + "m ago";
+  if (s < 7200) return "1h ago";
+  if (s < 86400) return Math.round(s / 3600) + "h ago";
+  if (s < 172800) return "yesterday";
+  return Math.round(s / 86400) + "d ago";
 }
 
 /* ---------------- markdown-lite (safe) ---------------- */
@@ -378,11 +475,15 @@ async function loadHistory() {
     const h = $("history");
     if (!d.runs?.length) { h.innerHTML = `<span class="muted">No runs yet.</span>`; return; }
     h.innerHTML = d.runs.map((r) =>
-      `<div class="hrow" data-id="${esc(r.run_id)}">
+      `<div class="hrow" data-id="${esc(r.run_id)}" tabindex="0" role="button">
         <div class="hq">${esc(r.question || r.engine_name)}</div>
         <div class="hmeta"><span class="dot ${r.engine_status === "certified" ? "cert" : "exp"}"></span>
-          <span class="nm">${esc(r.engine_name)}</span></div></div>`).join("");
-    h.querySelectorAll(".hrow").forEach((el) => el.onclick = () => openRun(el.dataset.id));
+          <span class="nm">${esc(r.engine_name)}</span>
+          <span class="ht">${esc(relTime(r.timestamp))}</span></div></div>`).join("");
+    h.querySelectorAll(".hrow").forEach((el) => {
+      el.onclick = () => openRun(el.dataset.id);
+      el.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openRun(el.dataset.id); } };
+    });
   } catch (_) { /* leave as-is */ }
 }
 
@@ -407,7 +508,8 @@ async function openRun(id) {
 
 function clearAll() {
   $("q").value = ""; $("engine").value = ""; $("dry").checked = false;
-  $("results").hidden = true; hideFlash(); $("q").focus();
+  $("results").hidden = true; $("howto").hidden = false; hideFlash();
+  saveDraft(); $("q").focus();
 }
 
 document.addEventListener("DOMContentLoaded", init);
