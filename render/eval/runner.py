@@ -12,12 +12,33 @@ from dataclasses import dataclass, field
 from render.registry.protocol import EngineAdapter
 from render.types import ReferenceCase, ResourceSpec
 
+# Phrases an adapter emits when its backend (Python package, binary, or Julia
+# package) simply isn't installed in this environment. These are *environment*
+# limitations, not reference-case regressions, so they're reported as SKIPPED
+# and do not fail the CI gate — a runner without PySCF/OpenMM/Julia/LAMMPS is
+# expected, while a genuine tolerance miss is not.
+_MISSING_BACKEND_MARKERS = (
+    "not installed",
+    "not found",
+    "no module named",
+    "package freebird not",
+    "could not find julia",
+    "julia not found",
+    "module load",
+)
+
+
+def _is_missing_backend(message: str) -> bool:
+    msg = message.lower()
+    return any(marker in msg for marker in _MISSING_BACKEND_MARKERS)
+
 
 @dataclass
 class CaseResult:
     case_name: str
     engine: str
     passed: bool
+    skipped: bool = False
     failures: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
 
@@ -28,10 +49,12 @@ class EvalReport:
     total: int
     passed: int
     failed: int
+    skipped: int = 0
     cases: list[CaseResult] = field(default_factory=list)
 
     @property
     def ok(self) -> bool:
+        # A report is OK when nothing genuinely failed; skipped cases don't count.
         return self.failed == 0
 
 
@@ -57,19 +80,23 @@ def run_reference_case(adapter: EngineAdapter, case: ReferenceCase) -> CaseResul
         inputs = adapter.build_inputs(case.intent)
         raw = adapter.run(inputs, resources)
     except Exception as exc:
+        msg = f"Run error: {exc}"
         return CaseResult(
             case_name=case.name,
             engine=adapter.name,
             passed=False,
-            failures=[f"Run error: {exc}"],
+            skipped=_is_missing_backend(str(exc)),
+            failures=[msg],
         )
 
     if raw.exit_code != 0:
+        detail = f"Engine exited with code {raw.exit_code}: {raw.stderr[:200]}"
         return CaseResult(
             case_name=case.name,
             engine=adapter.name,
             passed=False,
-            failures=[f"Engine exited with code {raw.exit_code}: {raw.stderr[:200]}"],
+            skipped=_is_missing_backend(raw.stderr or ""),
+            failures=[detail],
         )
 
     # Parse
@@ -125,10 +152,14 @@ def eval_engine(adapter: EngineAdapter) -> EvalReport:
         cases_results.append(result)
 
     passed = sum(1 for r in cases_results if r.passed)
+    skipped = sum(1 for r in cases_results if r.skipped)
+    # Skipped (missing backend) cases are neither passed nor failed.
+    failed = sum(1 for r in cases_results if not r.passed and not r.skipped)
     return EvalReport(
         engine=adapter.name,
         total=len(cases_results),
         passed=passed,
-        failed=len(cases_results) - passed,
+        failed=failed,
+        skipped=skipped,
         cases=cases_results,
     )

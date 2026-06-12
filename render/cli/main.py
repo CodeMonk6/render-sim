@@ -130,17 +130,27 @@ def eval(
     scorecard: list[dict] = []
     for adapter in targets:
         report = eval_engine(adapter)
-        status = "[green]PASS[/green]" if report.ok else "[red]FAIL[/red]"
+        # All cases skipped (backend absent) → SKIP, not FAIL: this environment
+        # just can't run the engine, which is not a regression.
+        all_skipped = report.skipped == report.total and report.total > 0
+        if report.ok and all_skipped:
+            status = "[yellow]SKIP[/yellow]"
+        elif report.ok:
+            status = "[green]PASS[/green]"
+        else:
+            status = "[red]FAIL[/red]"
         console.print(
             f"\n[bold]{adapter.name}[/bold] ({adapter.status}) — {status} "
-            f"({report.passed}/{report.total})"
+            f"({report.passed}/{report.total}"
+            f"{f', {report.skipped} skipped' if report.skipped else ''})"
         )
         for case in report.cases:
-            icon = "✓" if case.passed else "✗"
-            color = "green" if case.passed else "red"
+            icon = "-" if case.skipped else ("✓" if case.passed else "✗")
+            color = "yellow" if case.skipped else ("green" if case.passed else "red")
             console.print(f"  [{color}]{icon}[/{color}] {case.case_name}")
             for f in case.failures:
-                console.print(f"      [red]{f}[/red]")
+                fcolor = "yellow" if case.skipped else "red"
+                console.print(f"      [{fcolor}]{f}[/{fcolor}]")
             for w in case.warnings:
                 console.print(f"      [yellow]⚠ {w}[/yellow]")
         if not report.ok:
@@ -151,6 +161,7 @@ def eval(
                 "status": adapter.status,
                 "ok": report.ok,
                 "passed": report.passed,
+                "skipped": report.skipped,
                 "total": report.total,
             }
         )
