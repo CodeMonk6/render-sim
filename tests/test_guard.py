@@ -33,6 +33,13 @@ def test_no_guard_by_default(monkeypatch):
     assert c.post("/ask", json={"question": ""}).status_code == 422
 
 
+def test_health_reports_auth_required(monkeypatch):
+    monkeypatch.delenv("RENDER_ACCESS_TOKEN", raising=False)
+    assert TestClient(app).get("/health").json()["auth_required"] is False
+    monkeypatch.setenv("RENDER_ACCESS_TOKEN", "sekret")
+    assert TestClient(app).get("/health").json()["auth_required"] is True
+
+
 def test_token_gate_blocks_and_allows(monkeypatch):
     monkeypatch.setenv("RENDER_ACCESS_TOKEN", "sekret")
     monkeypatch.delenv("RENDER_RATE_LIMIT", raising=False)

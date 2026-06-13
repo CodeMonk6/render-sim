@@ -44,6 +44,8 @@ async def index() -> FileResponse:
 
 @app.get("/health")
 async def health() -> dict:
+    import os
+
     from render.llm import get_api_key, get_default_model, get_provider
 
     provider = get_provider()
@@ -53,4 +55,5 @@ async def health() -> dict:
         "provider": provider,
         "model": get_default_model(provider),
         "has_key": bool(get_api_key()),
+        "auth_required": bool(os.environ.get("RENDER_ACCESS_TOKEN")),
     }

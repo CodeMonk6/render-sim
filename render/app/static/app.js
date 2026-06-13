@@ -20,6 +20,7 @@ const EXAMPLES = [
 
 /* ---------------- init ---------------- */
 const DRAFT_KEY = "render.draft";
+const TOKEN_KEY = "render.token";
 function init() {
   const ex = $("examples");
   EXAMPLES.forEach((t) => {
@@ -35,7 +36,14 @@ function init() {
   });
   $("q").addEventListener("input", saveDraft);
   $("copy-replay").addEventListener("click", copyReplay);
-  try { const d = localStorage.getItem(DRAFT_KEY); if (d) $("q").value = d; } catch (_) {}
+  $("token").addEventListener("input", () => {
+    try { localStorage.setItem(TOKEN_KEY, $("token").value); } catch (_) {}
+    $("token").classList.remove("needed");
+  });
+  try {
+    const d = localStorage.getItem(DRAFT_KEY); if (d) $("q").value = d;
+    const t = localStorage.getItem(TOKEN_KEY); if (t) $("token").value = t;
+  } catch (_) {}
   initEngineCombo();
   loadHealth();
   loadCoverage();
@@ -132,6 +140,8 @@ async function loadHealth() {
     pill.textContent = (d.provider || "live").toUpperCase();
     pill.className = "pill " + (d.has_key ? "pill-live" : "pill-muted");
     pill.title = d.model ? ("Model: " + d.model) : "LLM provider";
+    // Reveal the token field only when the server actually gates the run endpoints.
+    if (d.auth_required) $("token-field").hidden = false;
   } catch (_) { $("provider-pill").textContent = "OFFLINE"; }
 }
 
@@ -171,11 +181,26 @@ async function submitAsk() {
   flash("loading", "Mapping your question to a validated engine and running it…");
 
   try {
+    const headers = { "Content-Type": "application/json" };
+    const token = $("token").value.trim();
+    if (token) headers["Authorization"] = "Bearer " + token;
     const res = await fetch("/ask", {
-      method: "POST", headers: { "Content-Type": "application/json" },
+      method: "POST", headers,
       body: JSON.stringify({ question: q, engine, dry_run: dry, interpret_result: true }),
     });
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
+    if (res.status === 401) {
+      $("token-field").hidden = false;
+      $("token").classList.add("needed");
+      $("token").focus();
+      flash("abstain", "Access token required",
+        data.detail || "This demo is access-gated. Enter a valid token to run simulations.");
+      return;
+    }
+    if (res.status === 429) {
+      flash("error", "Rate limit reached", data.detail || "Too many requests — try again shortly.");
+      return;
+    }
     if (!res.ok) { flash("error", "Something went wrong", data.detail || ("HTTP " + res.status)); return; }
     route(data);
     loadHistory();

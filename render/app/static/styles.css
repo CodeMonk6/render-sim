@@ -136,6 +136,12 @@ button:focus-visible,.chip:focus-visible{outline-offset:1px}
 .combo-empty{padding:.55rem;color:var(--muted);font-size:.8rem;text-align:center}
 .check{display:flex;align-items:center;gap:.45rem;font-size:.85rem;color:var(--ink-2);cursor:pointer;user-select:none}
 .check input{accent-color:var(--accent);width:15px;height:15px}
+.token-field{display:flex;align-items:center}
+.token-input{border:1.5px solid var(--line);border-radius:var(--r-sm);padding:.5rem .7rem;
+  font-size:.82rem;font-family:var(--mono);width:150px;background:var(--surface-2);color:var(--ink)}
+.token-input::placeholder{color:var(--faint);font-family:var(--sans)}
+.token-input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-ring);background:#fff}
+.token-input.needed{border-color:var(--amber);box-shadow:0 0 0 3px var(--amber-soft)}
 .actions{display:flex;align-items:center;gap:.6rem}
 .kbd-hint{display:inline-flex;gap:.18rem;margin-right:.15rem}
 .kbd-hint kbd{font-family:var(--sans);font-size:.68rem;font-weight:600;color:var(--muted);
