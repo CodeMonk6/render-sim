@@ -14,6 +14,10 @@ on:
         description: 'Comma-separated engine groups (e.g. "dft,md,materials")'
         required: false
         default: ""
+      install_julia:
+        description: 'Install Julia + FreeBird.jl (true/false)'
+        required: false
+        default: "false"
 
 concurrency:
   group: docker-${{ github.ref }}
@@ -58,5 +62,6 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             ENGINE_EXTRAS=${{ github.event.inputs.engine_extras }}
+            INSTALL_JULIA=${{ github.event.inputs.install_julia }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

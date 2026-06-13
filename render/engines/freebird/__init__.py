@@ -48,10 +48,18 @@ _R_MIN_OVER_SIGMA = 2.0 ** (1.0 / 6.0)  # LJ pair-potential minimum separation
 
 
 def _julia_exe() -> str | None:
-    """Locate the Julia executable (env override, PATH, then juliaup default)."""
-    cand = os.environ.get("RENDER_JULIA") or shutil.which("julia")
-    if cand:
-        return cand
+    """Locate the Julia executable (env override, PATH, then juliaup default).
+
+    The ``RENDER_JULIA`` override is honoured only if it actually exists, so an
+    image can set it unconditionally (pointing at where Julia *would* be) without
+    breaking the clean "Julia not found" abstain when Julia isn't installed.
+    """
+    override = os.environ.get("RENDER_JULIA")
+    if override and os.path.exists(override):
+        return override
+    found = shutil.which("julia")
+    if found:
+        return found
     default = os.path.expanduser("~/.juliaup/bin/julia")
     return default if os.path.exists(default) else None
 

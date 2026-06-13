@@ -1,58 +1,55 @@
 # Render — container image for the FastAPI app (serves the web UI + API).
 #
-# The base image ships the always-available certified engines (ODE, epidemic/PK,
-# and the closed-form reference engine) with zero heavy native builds, so it
-# deploys cleanly on small free tiers. Add more engine families at build time:
+# Runs as a non-root user (UID 1000) so it works identically on Hugging Face
+# Spaces, Cloud Run, Railway, and locally. Lean by default (core certified
+# engines, no heavy native builds). Add engine families and the Julia/FreeBird
+# runtime at build time:
 #
-#   docker build -t render .                                   # lean default
-#   docker build --build-arg ENGINE_EXTRAS="ssa,des,abm,mcmc,nbody,materials" -t render .
-#   docker build --build-arg ENGINE_EXTRAS="dft,md,materials"  -t render .   # heavy: PySCF + OpenMM
-#
-# FreeBird.jl needs a Julia runtime; build with INSTALL_JULIA=true to vendor it.
-FROM python:3.11-slim AS base
+#   docker build -t render .                                                  # lean
+#   docker build --build-arg ENGINE_EXTRAS="dft,md,materials" -t render .     # PySCF + OpenMM + ASE
+#   docker build --build-arg ENGINE_EXTRAS="dft,md,materials,ssa,des,abm,mcmc,nbody" \
+#                --build-arg INSTALL_JULIA=true -t render .                    # + FreeBird.jl
+FROM python:3.11-slim
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
-    PORT=8000
+    PORT=8000 \
+    RENDER_RUNS_DIR=/tmp/.render_runs
 
 # Comma-separated optional-dependency groups from pyproject.toml. Empty = core only.
 ARG ENGINE_EXTRAS=""
 ARG INSTALL_JULIA="false"
 
-# Build toolchain only when heavy/native engines are requested; kept out of the
-# final layer to keep the image small for lean builds.
-RUN if [ -n "$ENGINE_EXTRAS" ]; then \
+# System toolchain (needed for native engine builds and the Julia installer).
+RUN if [ -n "$ENGINE_EXTRAS" ] || [ "$INSTALL_JULIA" = "true" ]; then \
         apt-get update && apt-get install -y --no-install-recommends \
-            build-essential gfortran libopenblas-dev && \
+            build-essential gfortran libopenblas-dev curl ca-certificates && \
         rm -rf /var/lib/apt/lists/* ; \
     fi
 
-WORKDIR /app
-
-# Copy metadata first for better layer caching, then the package.
+# Python deps installed to the system site-packages as root (world-readable, so
+# the non-root runtime user can import them).
+WORKDIR /install
 COPY pyproject.toml ./
 COPY render ./render
+RUN if [ -n "$ENGINE_EXTRAS" ]; then pip install ".[$ENGINE_EXTRAS]" ; else pip install . ; fi
 
-RUN if [ -n "$ENGINE_EXTRAS" ]; then \
-        pip install ".[$ENGINE_EXTRAS]" ; \
-    else \
-        pip install . ; \
-    fi
+# Non-root user — Hugging Face Spaces runs containers as UID 1000.
+RUN useradd -m -u 1000 user
+USER user
+ENV HOME=/home/user \
+    PATH=/home/user/.local/bin:/home/user/.juliaup/bin:$PATH \
+    RENDER_JULIA=/home/user/.juliaup/bin/julia
+WORKDIR /home/user/app
 
-# Optional: vendor a Julia runtime + FreeBird.jl for the atomistic-MC engine.
+# Optional: Julia + FreeBird.jl for the atomistic-MC flagship engine. Installed
+# AS the runtime user, with the package depot precompiled into the user-owned
+# ~/.julia so `using FreeBird` is instant (and writable) at runtime.
 RUN if [ "$INSTALL_JULIA" = "true" ]; then \
-        apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && \
         curl -fsSL https://install.julialang.org | sh -s -- --yes && \
-        /root/.juliaup/bin/julia -e 'import Pkg; Pkg.add(["FreeBird","Unitful"]); Pkg.precompile()' && \
-        rm -rf /var/lib/apt/lists/* ; \
+        /home/user/.juliaup/bin/julia -e 'import Pkg; Pkg.add(["FreeBird","Unitful"]); Pkg.precompile()' ; \
     fi
-ENV PATH="/root/.juliaup/bin:${PATH}"
-
-# Manifests (provenance) land here; mount a volume to persist across restarts.
-ENV RENDER_RUNS_DIR=/data/.render_runs
-RUN mkdir -p /data/.render_runs
-VOLUME ["/data"]
 
 EXPOSE 8000
 
