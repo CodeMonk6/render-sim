@@ -23,6 +23,39 @@ from render.types import (
 )
 from render.validate.regime import RegimeSpec
 
+# Map the many natural ways a user (or the LLM) names a method onto the canonical
+# values the engine understands, so "Hartree-Fock", "RHF", "Kohn-Sham", etc. all
+# work instead of abstaining. Unknown values are left as-is and rejected in validate.
+_METHOD_ALIASES = {
+    "hf": "hf",
+    "hartree_fock": "hf",
+    "hartree-fock": "hf",
+    "hartree fock": "hf",
+    "scf": "hf",
+    "rhf": "hf",
+    "uhf": "hf",
+    "rohf": "hf",
+    "dft": "dft",
+    "ks": "dft",
+    "kohn_sham": "dft",
+    "kohn-sham": "dft",
+    "rks": "dft",
+    "uks": "dft",
+    "mp2": "mp2",
+    "rmp2": "mp2",
+    "ump2": "mp2",
+    "ccsd": "ccsd",
+    "ccsd(t)": "ccsd(t)",
+    "ccsdt": "ccsd(t)",
+    "ccsd_t": "ccsd(t)",
+}
+
+
+def _normalize_method(raw: object) -> str:
+    """Canonicalize a method name; unknown inputs pass through unchanged."""
+    m = str(raw).strip().lower()
+    return _METHOD_ALIASES.get(m, m)
+
 
 class DFTIntent(BaseModel):
     molecule: str = Field(description="XYZ or SMILES string, or built-in name ('H2', 'H2O', 'N2')")
@@ -58,7 +91,7 @@ class PySCFAdapter:
         return _REFERENCE_CASES
 
     def validate(self, intent: Intent) -> ValidationReport:
-        method = str(intent.parameters.get("method", "hf")).lower()
+        method = _normalize_method(intent.parameters.get("method", "hf"))
         if method not in ("hf", "dft", "mp2", "ccsd", "ccsd(t)"):
             return ValidationReport(
                 passed=False, failed_layer=1, errors=[f"Unknown method '{method}'"]
@@ -76,7 +109,7 @@ class PySCFAdapter:
             raise ImportError("PySCF not installed. Run: pip install pyscf")
         p = inputs.params
         mol_str = p.get("molecule", "H2")
-        method = str(p.get("method", "hf")).lower()
+        method = _normalize_method(p.get("method", "hf"))
         basis = str(p.get("basis", "sto-3g")).lower()
         charge = int(p.get("charge", 0))
         spin = int(p.get("spin", 0))
